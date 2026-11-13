@@ -215,7 +215,6 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
         return regulated_temp
 
     @property
-    @overrides
     def _prepare_underlying_mode_change(self) -> bool:
         """Prepare an Avatto on mode transitions, or use the normal plugin path."""
         return self._avatto_room_control or super()._prepare_underlying_mode_change
