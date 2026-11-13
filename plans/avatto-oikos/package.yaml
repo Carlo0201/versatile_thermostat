@@ -66,6 +66,38 @@ template:
          and not specific.get('inhibition',{}).get('inhibited',false)
          and window.get('window_state') == 'off'
          and control.get('avatto_room_demand') is true }}
+  - name: Camera Carlo PDC pronta per avvio
+    unique_id: avatto_oikos_camera_carlo_pdc_pronta_per_avvio
+    default_entity_id: binary_sensor.camera_carlo_pdc_pronta_per_avvio
+    state: >-
+      {{ ((is_state('input_boolean.camera_carlo_pdc_automatica', 'on')
+        and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat'
+        and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle')
+        and is_state('switch.schedule_camera_carlo_vtherm_feriale','off')
+        and is_state('switch.schedule_camera_carlo_vtherm_weekend','off'))))
+        and states('select.central_mode') in ['Auto', 'Heat only'])
+        and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off'))
+        and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none
+        and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none
+        and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600)
+        and ((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) - (states('sensor.temperatura_camera_carlo') | float(none))) >= 0.3 - 0.000001
+        and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none
+        and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45)
+        and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none))
+        and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600)
+        and (is_state('climate.termostato_ingresso', 'off')
+        and is_state('binary_sensor.central_boiler', 'off')
+        and is_state('input_boolean.richiesta_caldaia_vtherm', 'off')
+        and states('sensor.nb_device_active_for_boiler') in ['0', '1']
+        and ((state_attr('sensor.nb_device_active_for_boiler', 'active_device_ids') or []) | reject('eq', 'climate.trv_camera_carlo') | list | count) == 0)
+        and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off')
+        and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off'))
+        and is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off')
+        and is_state('climate.trv_vtherm_camera_carlo', 'heat')
+        and is_state('climate.camera_carlo_condizionatore', 'off')
+        and (as_timestamp(now()) - as_timestamp(states['climate.camera_carlo_condizionatore'].last_changed, 0)) >= 480
+        and (as_timestamp(now()) - as_timestamp(states['input_boolean.camera_carlo_pdc_in_gestione'].last_changed, 0)) >= 480
+        and is_state('climate.camera_carlo_pompa_di_calore', 'off') }}
   - name: Caldaia Richiesta manuale Oikos
     unique_id: avatto_oikos_caldaia_richiesta_manuale_oikos
     default_entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
@@ -90,6 +122,7 @@ template:
         {% set physical = (state_attr(room,'vtherm_over_climate') or {}).get('underlying_entities',[]) %}
         {% set split = slug in ['camera_carlo','camera_diego_luisa'] %}
         {% if explicit and is_state(room,['heat','auto']) and state_attr(room,'hvac_action') == 'heating'
+              and (slug != 'camera_carlo' or not is_state('binary_sensor.camera_carlo_pdc_pronta_per_avvio','on'))
               and specific.get('is_initialized',false)
               and not specific.get('inhibition',{}).get('inhibited',false)
               and window.get('window_state') == 'off'

@@ -11,6 +11,8 @@ Il fork contiene sia il controllo delle valvole in `custom_components/versatile_
 
 Il bypass riconosce un timer di override Oikos attivo o la modalità Manuale, nella quale entrambi i programmi della stanza sono spenti. La testina deve appartenere alla stessa stanza e segnalare riscaldamento. Restano validi i blocchi per finestra, modalità centrale, pompa di calore e assenza di testine attive.
 
+Per Camera Carlo, la scelta della fonte riconosce anche la regolazione manuale Oikos. Quando il sensore `binary_sensor.camera_carlo_pdc_pronta_per_avvio` conferma che Camera Carlo è l'unica stanza in richiesta e che la pompa di calore può partire, il bypass manuale attende la scelta della fonte. L'automazione attende due minuti prima di avviare lo split e verifica la sospensione del radiatore. Il file `camera-carlo-heat-source.json` aggiorna l'automazione Home Assistant esistente con ID `1794394374460`.
+
 `input_boolean.caldaia_filtro_pilota_avatto` parte spento, anche dopo un riavvio. In questa modalità i sensori Avatto permettono il confronto con lo storico. Accendendolo, la logica automatica esclude dal conteggio di avvio le testine di Camera Carlo, Bagno Blu e Camera Laura Livia quando la rispettiva stanza ha smesso di chiedere calore. Per Camera Laura Livia, il sensore legge la richiesta calcolata da VTherm. L'avvio manuale segue la sua regola anche quando il filtro Avatto è acceso.
 
 I timer `timer.caldaia_attesa_avvio` e `timer.caldaia_attesa_spegnimento` espongono le attese del filtro. L'automazione li sincronizza con le scadenze Home Assistant. I loro eventi non comandano il termostato master. Si possono aggiungere a una scheda Entità di Lovelace.
