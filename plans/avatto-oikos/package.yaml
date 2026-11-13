@@ -51,6 +51,21 @@ template:
       {% set previous = this.state if this is defined and this is not none else 'off' %}
       {{ enabled and measured is not none and target is not none and
          (((target-measured)|round(3) > 0) if previous == 'on' else ((target-measured)|round(3) >= 0.3)) }}
+  - name: Avatto Domanda camera laura livia
+    unique_id: avatto_oikos_avatto_domanda_camera_laura_livia
+    default_entity_id: binary_sensor.avatto_domanda_camera_laura_livia
+    state: |
+      {% set room = 'climate.trv_vtherm_camera_laura_livia' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set control = state_attr(room,'vtherm_over_climate') or {} %}
+      {{ is_state('select.central_mode',['Auto','Heat only'])
+         and is_state(room,['heat','auto'])
+         and state_attr(room,'hvac_action') in ['heating','idle']
+         and specific.get('is_initialized',false)
+         and not specific.get('inhibition',{}).get('inhibited',false)
+         and window.get('window_state') == 'off'
+         and control.get('avatto_room_demand') is true }}
   - name: Caldaia Richiesta manuale Oikos
     unique_id: avatto_oikos_caldaia_richiesta_manuale_oikos
     default_entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
@@ -96,7 +111,8 @@ template:
     state: |
       {% set devices = state_attr('sensor.nb_device_active_for_boiler','active_device_ids') or [] %}
       {% set pilot = {'climate.trv_camera_carlo':'binary_sensor.avatto_domanda_camera_carlo',
-                     'climate.trv_bagno_blu':'binary_sensor.avatto_domanda_bagno_blu'} %}
+                     'climate.trv_bagno_blu':'binary_sensor.avatto_domanda_bagno_blu',
+                     'climate.trv_camera_laura_livia':'binary_sensor.avatto_domanda_camera_laura_livia'} %}
       {% set found = namespace(count=0) %}
       {% for valve in devices | unique %}
         {% if valve not in pilot or is_state(pilot[valve],'on') %}

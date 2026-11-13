@@ -5,13 +5,13 @@ Il fork contiene sia il controllo delle valvole in `custom_components/versatile_
 | Funzione | Sorgente |
 | --- | --- |
 | Controllo del setpoint Avatto con isteresi a 0,3 °C | `custom_components/versatile_thermostat/avatto.py` e `thermostat_climate.py` |
-| Domanda ambiente di Camera Carlo e Bagno Blu e consenso automatico pilota | `package.yaml`, sezione `template` |
+| Domanda ambiente di Camera Carlo, Bagno Blu e Camera Laura Livia e consenso automatico pilota | `package.yaml`, sezione `template` |
 | Avvio manuale Oikos con una testina confermata per 120 secondi | `package.yaml`, automazione `Caldaia - Filtro richiesta vTherm` |
 | Timer nativi di avvio e spegnimento | `package.yaml`, sezione `timer` e automazione `Caldaia sincronizza timer` |
 
 Il bypass riconosce un timer di override Oikos attivo o la modalità Manuale, nella quale entrambi i programmi della stanza sono spenti. La testina deve appartenere alla stessa stanza e segnalare riscaldamento. Restano validi i blocchi per finestra, modalità centrale, pompa di calore e assenza di testine attive.
 
-`input_boolean.caldaia_filtro_pilota_avatto` parte spento, anche dopo un riavvio. In questa modalità i sensori Avatto permettono il confronto con lo storico. Accendendolo, la logica automatica esclude dal conteggio di avvio le due testine pilota se la stanza non chiede calore. L'avvio manuale segue la sua regola anche quando il filtro Avatto è acceso.
+`input_boolean.caldaia_filtro_pilota_avatto` parte spento, anche dopo un riavvio. In questa modalità i sensori Avatto permettono il confronto con lo storico. Accendendolo, la logica automatica esclude dal conteggio di avvio le testine di Camera Carlo, Bagno Blu e Camera Laura Livia quando la rispettiva stanza ha smesso di chiedere calore. Per Camera Laura Livia, il sensore legge la richiesta calcolata da VTherm. L'avvio manuale segue la sua regola anche quando il filtro Avatto è acceso.
 
 I timer `timer.caldaia_attesa_avvio` e `timer.caldaia_attesa_spegnimento` espongono le attese del filtro. L'automazione li sincronizza con le scadenze Home Assistant. I loro eventi non comandano il termostato master. Si possono aggiungere a una scheda Entità di Lovelace.
 
