@@ -1783,6 +1783,11 @@ class BaseThermostat(ClimateEntity, RestoreEntity, Generic[T]):
         """The configured external feature managers which adjust the regulated temperature. None by default"""
         return []
 
+    @property
+    def _prepare_underlying_mode_change(self) -> bool:
+        """Whether to prepare the underlyings before changing mode."""
+        return bool(self._setpoint_modifiers)
+
     async def _before_underlying_hvac_mode_change(self, _command_cause: str | None = None):
         """Allow a thermostat to prepare its underlyings before a mode change."""
 
@@ -1828,7 +1833,8 @@ class BaseThermostat(ClimateEntity, RestoreEntity, Generic[T]):
                 # Apply hvac_mode
                 if self._state_manager.current_state.is_hvac_mode_changed:
                     _LOGGER.info("%s - Applying new hvac mode: %s", self, self.vtherm_hvac_mode)
-                    await self._before_underlying_hvac_mode_change(_command_cause)
+                    if self._prepare_underlying_mode_change:
+                        await self._before_underlying_hvac_mode_change(_command_cause)
                     # Delegate to all underlying
                     for under in self._underlyings:
                         set_mode_result = await under.set_hvac_mode(
