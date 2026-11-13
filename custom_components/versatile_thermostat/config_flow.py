@@ -758,6 +758,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         """Handle the Type flow steps"""
         _LOGGER.debug("Into ConfigFlow.async_step_type user_input=%s", user_input)
 
+        if user_input is not None and not user_input.get(CONF_AVATTO_ROOM_CONTROL):
+            # Keep the opt-in flag absent for existing and newly configured standard thermostats.
+            user_input = {key: value for key, value in user_input.items() if key != CONF_AVATTO_ROOM_CONTROL}
+
         if self._infos[CONF_THERMOSTAT_TYPE] == CONF_THERMOSTAT_VALVE:
             values = user_input if user_input is not None else self._infos
             if CONF_OPENING_THRESHOLD_DEGREE in values:

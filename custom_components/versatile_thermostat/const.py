@@ -132,6 +132,7 @@ CONF_AUTO_REGULATION_MEDIUM = "auto_regulation_medium"
 CONF_AUTO_REGULATION_STRONG = "auto_regulation_strong"
 CONF_AUTO_REGULATION_EXPERT = "auto_regulation_expert"
 CONF_AUTO_REGULATION_DTEMP = "auto_regulation_dtemp"
+CONF_AVATTO_ROOM_CONTROL = "avatto_room_control"
 CONF_AUTO_REGULATION_PERIOD_MIN = "auto_regulation_periode_min"
 CONF_AUTO_REGULATION_USE_DEVICE_TEMP = "auto_regulation_use_device_temp"
 CONF_INVERSE_SWITCH = "inverse_switch_command"
@@ -410,6 +411,7 @@ ALL_CONF = (
         CONF_AC_MODE,
         CONF_AUTO_REGULATION_MODE,
         CONF_AUTO_REGULATION_DTEMP,
+        CONF_AVATTO_ROOM_CONTROL,
         CONF_AUTO_REGULATION_PERIOD_MIN,
         CONF_AUTO_REGULATION_USE_DEVICE_TEMP,
         CONF_INVERSE_SWITCH,

@@ -1,0 +1,538 @@
+# Package for the Oikos installation. See README.md before loading it.
+input_boolean:
+  caldaia_filtro_pilota_avatto:
+    name: Caldaia filtro pilota Avatto
+    initial: false
+timer:
+  caldaia_attesa_avvio:
+    name: Caldaia attesa avvio
+    duration: 00:02:00
+    restore: true
+  caldaia_attesa_spegnimento:
+    name: Caldaia attesa spegnimento
+    duration: 00:02:00
+    restore: true
+template:
+- binary_sensor:
+  - name: Avatto Domanda camera carlo
+    unique_id: avatto_oikos_avatto_domanda_camera_carlo
+    default_entity_id: binary_sensor.avatto_domanda_camera_carlo
+    state: |
+      {% set room = 'climate.trv_vtherm_camera_carlo' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set enabled = is_state('select.central_mode',['Auto','Heat only'])
+          and is_state(room,['heat','auto'])
+          and state_attr(room,'hvac_action') in ['heating','idle']
+          and specific.get('is_initialized',false)
+          and not specific.get('inhibition',{}).get('inhibited',false)
+          and window.get('window_state') == 'off'
+          and is_state('input_boolean.camera_carlo_pdc_in_gestione','off') %}
+      {% set measured = state_attr(room,'current_temperature') | float(none) %}
+      {% set target = state_attr(room,'temperature') | float(none) %}
+      {% set previous = this.state if this is defined and this is not none else 'off' %}
+      {{ enabled and measured is not none and target is not none and
+         (((target-measured)|round(3) > 0) if previous == 'on' else ((target-measured)|round(3) >= 0.3)) }}
+  - name: Avatto Domanda bagno blu
+    unique_id: avatto_oikos_avatto_domanda_bagno_blu
+    default_entity_id: binary_sensor.avatto_domanda_bagno_blu
+    state: |
+      {% set room = 'climate.trv_vtherm_bagno_blu' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set enabled = is_state('select.central_mode',['Auto','Heat only'])
+          and is_state(room,['heat','auto'])
+          and state_attr(room,'hvac_action') in ['heating','idle']
+          and specific.get('is_initialized',false)
+          and not specific.get('inhibition',{}).get('inhibited',false)
+          and window.get('window_state') == 'off' %}
+      {% set measured = state_attr(room,'current_temperature') | float(none) %}
+      {% set target = state_attr(room,'temperature') | float(none) %}
+      {% set previous = this.state if this is defined and this is not none else 'off' %}
+      {{ enabled and measured is not none and target is not none and
+         (((target-measured)|round(3) > 0) if previous == 'on' else ((target-measured)|round(3) >= 0.3)) }}
+  - name: Avatto Domanda camera laura livia
+    unique_id: avatto_oikos_avatto_domanda_camera_laura_livia
+    default_entity_id: binary_sensor.avatto_domanda_camera_laura_livia
+    state: |
+      {% set room = 'climate.trv_vtherm_camera_laura_livia' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set control = state_attr(room,'vtherm_over_climate') or {} %}
+      {{ is_state('select.central_mode',['Auto','Heat only'])
+         and is_state(room,['heat','auto'])
+         and state_attr(room,'hvac_action') in ['heating','idle']
+         and specific.get('is_initialized',false)
+         and not specific.get('inhibition',{}).get('inhibited',false)
+         and window.get('window_state') == 'off'
+         and control.get('avatto_room_demand') is true }}
+  - name: Camera Carlo PDC pronta per avvio
+    unique_id: avatto_oikos_camera_carlo_pdc_pronta_per_avvio
+    default_entity_id: binary_sensor.camera_carlo_pdc_pronta_per_avvio
+    state: >-
+      {{ ((is_state('input_boolean.camera_carlo_pdc_automatica', 'on')
+        and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat'
+        and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle')
+        and is_state('switch.schedule_camera_carlo_vtherm_feriale','off')
+        and is_state('switch.schedule_camera_carlo_vtherm_weekend','off'))))
+        and states('select.central_mode') in ['Auto', 'Heat only'])
+        and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off'))
+        and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none
+        and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none
+        and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600)
+        and ((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) - (states('sensor.temperatura_camera_carlo') | float(none))) >= 0.3 - 0.000001
+        and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none
+        and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45)
+        and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none))
+        and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600)
+        and (is_state('climate.termostato_ingresso', 'off')
+        and is_state('binary_sensor.central_boiler', 'off')
+        and is_state('input_boolean.richiesta_caldaia_vtherm', 'off')
+        and states('sensor.nb_device_active_for_boiler') in ['0', '1']
+        and ((state_attr('sensor.nb_device_active_for_boiler', 'active_device_ids') or []) | reject('eq', 'climate.trv_camera_carlo') | list | count) == 0)
+        and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off')
+        and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off'))
+        and is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off')
+        and is_state('climate.trv_vtherm_camera_carlo', 'heat')
+        and is_state('climate.camera_carlo_condizionatore', 'off')
+        and (as_timestamp(now()) - as_timestamp(states['climate.camera_carlo_condizionatore'].last_changed, 0)) >= 480
+        and (as_timestamp(now()) - as_timestamp(states['input_boolean.camera_carlo_pdc_in_gestione'].last_changed, 0)) >= 480
+        and is_state('climate.camera_carlo_pompa_di_calore', 'off') }}
+  - name: Caldaia Richiesta manuale Oikos
+    unique_id: avatto_oikos_caldaia_richiesta_manuale_oikos
+    default_entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+    state: |
+      {% set devices = state_attr('sensor.nb_device_active_for_boiler','active_device_ids') or [] %}
+      {% set rooms = [['ingresso','switch.schedule_ingresso_vtherm_feriale','switch.schedule_camera_ingresso_vtherm_weekend'],
+      ['soggiorno','switch.schedule_soggiorno_vtherm_feriale','switch.schedule_soggiorno_vtherm_weekend'],
+      ['cucina','switch.schedule_cucina_vtherm_feriale','switch.schedule_cucina_vtherm_weekend'],
+      ['camera_diego_luisa','switch.schedule_camera_diego_luisa_vtherm_feriale','switch.schedule_camera_diego_luisa_vtherm_weekend'],
+      ['camera_carlo','switch.schedule_camera_carlo_vtherm_feriale','switch.schedule_camera_carlo_vtherm_weekend'],
+      ['camera_laura_livia','switch.schedule_camera_laura_livia_vtherm_feriale','switch.schedule_camera_laura_livia_vtherm_weekend'],
+      ['bagno_verde','switch.schedule_bagno_verde_vtherm_feriale','switch.schedule_bagno_verde_vtherm_weekend'],
+      ['bagno_blu','switch.schedule_bagno_blu_vtherm_feriale','switch.schedule_bagno_blu_vtherm_weekend']] %}
+      {% set found = namespace(active=false) %}
+      {% for slug, weekday, weekend in rooms %}
+        {% set room = 'climate.trv_vtherm_' ~ slug %}
+        {% set timer = 'timer.override_riscaldamento_' ~ slug %}
+        {% set explicit = is_state(timer,'active') or
+             (is_state(timer,'idle') and is_state(weekday,'off') and is_state(weekend,'off')) %}
+        {% set specific = state_attr(room,'specific_states') or {} %}
+        {% set window = state_attr(room,'window_manager') or {} %}
+        {% set physical = (state_attr(room,'vtherm_over_climate') or {}).get('underlying_entities',[]) %}
+        {% set split = slug in ['camera_carlo','camera_diego_luisa'] %}
+        {% if explicit and is_state(room,['heat','auto']) and state_attr(room,'hvac_action') == 'heating'
+              and (slug != 'camera_carlo' or not is_state('binary_sensor.camera_carlo_pdc_pronta_per_avvio','on'))
+              and specific.get('is_initialized',false)
+              and not specific.get('inhibition',{}).get('inhibited',false)
+              and window.get('window_state') == 'off'
+              and (not split or is_state('input_boolean.' ~ slug ~ '_pdc_in_gestione','off')) %}
+          {% for valve in physical if valve in devices and is_state(valve,['heat','auto']) and state_attr(valve,'hvac_action') == 'heating' %}
+            {% set found.active = true %}
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+      {{ found.active and is_state('select.central_mode',['Auto','Heat only']) and states('sensor.nb_device_active_for_boiler')|int(0) >= 1 }}
+  - name: Caldaia Avvio pilota Avatto
+    unique_id: avatto_oikos_caldaia_avvio_pilota_avatto
+    default_entity_id: binary_sensor.caldaia_avvio_pilota_avatto
+    state: |
+      {{ is_state('binary_sensor.caldaia_richiesta_manuale_oikos','on') or is_state('binary_sensor.caldaia_avvio_automatico_avatto','on') }}
+  - name: Caldaia Avvio automatico Avatto
+    unique_id: avatto_oikos_caldaia_avvio_automatico_avatto
+    default_entity_id: binary_sensor.caldaia_avvio_automatico_avatto
+    state: |
+      {% set devices = state_attr('sensor.nb_device_active_for_boiler','active_device_ids') or [] %}
+      {% set pilot = {'climate.trv_camera_carlo':'binary_sensor.avatto_domanda_camera_carlo',
+                     'climate.trv_bagno_blu':'binary_sensor.avatto_domanda_bagno_blu',
+                     'climate.trv_camera_laura_livia':'binary_sensor.avatto_domanda_camera_laura_livia'} %}
+      {% set found = namespace(count=0) %}
+      {% for valve in devices | unique %}
+        {% if valve not in pilot or is_state(pilot[valve],'on') %}
+          {% set found.count = found.count + 1 %}
+        {% endif %}
+      {% endfor %}
+      {{ found.count >= 2 and is_state('select.central_mode',['Auto','Heat only']) and
+         is_state('binary_sensor.caldaia_consenso_termico_avvio','on') }}
+  sensor:
+  - name: Avatto Comando camera carlo
+    unique_id: avatto_oikos_avatto_comando_camera_carlo
+    default_entity_id: sensor.avatto_comando_camera_carlo
+    state: |
+      {% set room = 'climate.trv_vtherm_camera_carlo' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set enabled = is_state('select.central_mode',['Auto','Heat only'])
+          and is_state(room,['heat','auto'])
+          and state_attr(room,'hvac_action') in ['heating','idle']
+          and specific.get('is_initialized',false)
+          and not specific.get('inhibition',{}).get('inhibited',false)
+          and window.get('window_state') == 'off'
+          and is_state('input_boolean.camera_carlo_pdc_in_gestione','off') %}
+      {% set target = state_attr(room,'temperature') | float(none) %}
+      {% set source = state_attr(room,'vtherm_over_climate') or {} %}
+      {% set proposed = source.get('regulation',{}).get('regulated_target_temperature') | float(none) %}
+      {% if not enabled or target is none %} sospeso
+      {% elif not is_state('binary_sensor.avatto_domanda_camera_carlo','on') %}
+        {{ state_attr('climate.trv_camera_carlo','min_temp') | float(7) }}
+      {% else %} {{ [target + 0.5, proposed if proposed is not none else target] | min | round(1) }}
+      {% endif %}
+  - name: Avatto Comando bagno blu
+    unique_id: avatto_oikos_avatto_comando_bagno_blu
+    default_entity_id: sensor.avatto_comando_bagno_blu
+    state: |
+      {% set room = 'climate.trv_vtherm_bagno_blu' %}
+      {% set specific = state_attr(room,'specific_states') or {} %}
+      {% set window = state_attr(room,'window_manager') or {} %}
+      {% set enabled = is_state('select.central_mode',['Auto','Heat only'])
+          and is_state(room,['heat','auto'])
+          and state_attr(room,'hvac_action') in ['heating','idle']
+          and specific.get('is_initialized',false)
+          and not specific.get('inhibition',{}).get('inhibited',false)
+          and window.get('window_state') == 'off' %}
+      {% set target = state_attr(room,'temperature') | float(none) %}
+      {% set source = state_attr(room,'vtherm_over_climate') or {} %}
+      {% set proposed = source.get('regulation',{}).get('regulated_target_temperature') | float(none) %}
+      {% if not enabled or target is none %} sospeso
+      {% elif not is_state('binary_sensor.avatto_domanda_bagno_blu','on') %}
+        {{ state_attr('climate.trv_bagno_blu','min_temp') | float(7) }}
+      {% else %} {{ [target + 0.5, proposed if proposed is not none else target] | min | round(1) }}
+      {% endif %}
+automation:
+- id: '1793810460536'
+  alias: Caldaia - Filtro richiesta vTherm
+  description: Avvia con il consenso di vTherm, almeno due testine attive per 120 secondi consecutivi e almeno una
+    stanza coinvolta a 0,3 °C sotto obiettivo. Filtra per 120 secondi il calo a una testina attiva, con stop immediato
+    a zero o senza conteggio valido. Una richiesta manuale Oikos con testina attiva può avviare anche da sola dopo
+    120 secondi. Il filtro Avatto in avvio è applicato soltanto quando abilitato.
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.nb_device_active_for_boiler
+    - input_boolean.richiesta_caldaia_vtherm
+    - binary_sensor.central_boiler
+    to: null
+  - trigger: state
+    entity_id: climate.termostato_ingresso
+    from:
+    - unknown
+    - unavailable
+    to:
+    - heat
+    - 'off'
+  - trigger: homeassistant
+    event: start
+  - trigger: state
+    entity_id: binary_sensor.central_configuration_caldaia_soglia_due_testine
+    to: 'on'
+  - trigger: event
+    event_type: automation_reloaded
+  - trigger: state
+    entity_id: binary_sensor.caldaia_consenso_termico_avvio
+    to: 'on'
+    id: consenso_termico
+  - to: null
+    entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+    trigger: state
+  - trigger: state
+    entity_id:
+    - input_boolean.caldaia_filtro_pilota_avatto
+    - binary_sensor.caldaia_avvio_automatico_avatto
+    to: null
+  actions:
+  - choose:
+    - alias: Ferma subito a zero o senza un conteggio valido
+      conditions:
+      - condition: state
+        entity_id: sensor.nb_device_active_for_boiler
+        state:
+        - '0'
+        - unknown
+        - unavailable
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: heat
+      sequence:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.termostato_ingresso
+        data:
+          hvac_mode: 'off'
+    - conditions:
+      - state: 'on'
+        condition: state
+        entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+      - state: 'off'
+        condition: state
+        entity_id: climate.termostato_ingresso
+      - above: 0
+        condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+      alias: Avvia con richiesta manuale Oikos confermata da due minuti
+      sequence:
+      - delay:
+          seconds: '{{ [0, (120 - (now() - states[''binary_sensor.caldaia_richiesta_manuale_oikos''].last_changed).total_seconds())
+            | round(0, ''ceil'') | int] | max }}'
+      - state: 'on'
+        for:
+          seconds: 120
+        condition: state
+        entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+      - state: 'off'
+        condition: state
+        entity_id: climate.termostato_ingresso
+      - above: 0
+        condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+      - data:
+          hvac_mode: heat
+        target:
+          entity_id: climate.termostato_ingresso
+        action: climate.set_hvac_mode
+    - alias: Avvia con il filtro Avatto per due minuti consecutivi
+      conditions:
+      - condition: state
+        entity_id: input_boolean.richiesta_caldaia_vtherm
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.central_boiler
+        state: 'on'
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+        above: 1
+      - condition: state
+        entity_id: binary_sensor.central_configuration_caldaia_soglia_due_testine
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.caldaia_consenso_termico_avvio
+        state: 'on'
+      - condition: state
+        entity_id: input_boolean.caldaia_filtro_pilota_avatto
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.caldaia_avvio_automatico_avatto
+        state: 'on'
+      sequence:
+      - delay:
+          seconds: '{{ [0, (120 - (now() - states[''binary_sensor.caldaia_avvio_automatico_avatto''].last_changed).total_seconds())
+            | round(0, ''ceil'') | int] | max }}'
+      - condition: state
+        entity_id: binary_sensor.caldaia_avvio_automatico_avatto
+        state: 'on'
+        for:
+          seconds: 120
+      - condition: state
+        entity_id: input_boolean.richiesta_caldaia_vtherm
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.central_boiler
+        state: 'on'
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+        above: 1
+      - condition: state
+        entity_id: binary_sensor.caldaia_consenso_termico_avvio
+        state: 'on'
+      - condition: state
+        entity_id: input_boolean.caldaia_filtro_pilota_avatto
+        state: 'on'
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.termostato_ingresso
+        data:
+          hvac_mode: heat
+    - alias: Avvia dopo due minuti di richiesta con almeno una stanza sotto obiettivo
+      conditions:
+      - condition: state
+        entity_id: input_boolean.richiesta_caldaia_vtherm
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.central_boiler
+        state: 'on'
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+        above: 1
+      - condition: state
+        entity_id: binary_sensor.central_configuration_caldaia_soglia_due_testine
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.caldaia_consenso_termico_avvio
+        state: 'on'
+      - condition: state
+        entity_id: input_boolean.caldaia_filtro_pilota_avatto
+        state: 'off'
+      sequence:
+      - alias: Aspetta il tempo che manca ai due minuti consecutivi
+        delay:
+          seconds: '{{ [0, (120 - (now() - states[''binary_sensor.central_configuration_caldaia_soglia_due_testine''].last_changed).total_seconds())
+            | round(0, ''ceil'') | int] | max }}'
+      - condition: state
+        entity_id: binary_sensor.central_configuration_caldaia_soglia_due_testine
+        state: 'on'
+        for:
+          seconds: 120
+        alias: Verifica che la soglia sia rimasta superata per due minuti
+      - condition: state
+        entity_id: input_boolean.richiesta_caldaia_vtherm
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.central_boiler
+        state: 'on'
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.nb_device_active_for_boiler
+        above: 1
+      - condition: state
+        entity_id: binary_sensor.caldaia_consenso_termico_avvio
+        state: 'on'
+      - condition: state
+        entity_id: input_boolean.caldaia_filtro_pilota_avatto
+        state: 'off'
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: climate.termostato_ingresso
+        data:
+          hvac_mode: heat
+    - alias: Aspetta due minuti se resta una richiesta
+      conditions:
+      - condition: state
+        entity_id: sensor.nb_device_active_for_boiler
+        state: '1'
+      - condition: state
+        entity_id: climate.termostato_ingresso
+        state: heat
+      - condition: not
+        conditions:
+        - state: 'on'
+          condition: state
+          entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+      sequence:
+      - delay:
+          seconds: '{{ [0, (120 - (now() - states[''sensor.nb_device_active_for_boiler''].last_changed).total_seconds())
+            | round(0, ''ceil'') | int] | max }}'
+      - state: '1'
+        for:
+          seconds: 120
+        condition: state
+        entity_id: sensor.nb_device_active_for_boiler
+      - state: heat
+        condition: state
+        entity_id: climate.termostato_ingresso
+      - condition: not
+        conditions:
+        - state: 'on'
+          condition: state
+          entity_id: binary_sensor.caldaia_richiesta_manuale_oikos
+      - data:
+          hvac_mode: 'off'
+        target:
+          entity_id: climate.termostato_ingresso
+        action: climate.set_hvac_mode
+  mode: restart
+- max: 20
+  triggers:
+  - to: null
+    entity_id:
+    - automation.caldaia_filtro_richiesta_vtherm
+    - climate.termostato_ingresso
+    - sensor.nb_device_active_for_boiler
+    - binary_sensor.caldaia_richiesta_manuale_oikos
+    - binary_sensor.central_configuration_caldaia_soglia_due_testine
+    - input_boolean.caldaia_filtro_pilota_avatto
+    - binary_sensor.caldaia_avvio_automatico_avatto
+    trigger: state
+  - event: start
+    trigger: homeassistant
+  - event_type: automation_reloaded
+    trigger: event
+  id: caldaia_sincronizza_timer
+  actions:
+  - variables:
+      start_deadline: |-
+        {% if is_state('automation.caldaia_filtro_richiesta_vtherm','on') and is_state('climate.termostato_ingresso','off') %}
+          {% if is_state('binary_sensor.caldaia_richiesta_manuale_oikos','on') and states('sensor.nb_device_active_for_boiler')|int(0) > 0 %}
+            {{ as_timestamp(states['binary_sensor.caldaia_richiesta_manuale_oikos'].last_changed) + 120 }}
+          {% elif is_state('input_boolean.caldaia_filtro_pilota_avatto','on') %}
+            {% if is_state('binary_sensor.caldaia_avvio_automatico_avatto','on') %}
+              {{ as_timestamp(states['binary_sensor.caldaia_avvio_automatico_avatto'].last_changed) + 120 }}
+            {% else %}0{% endif %}
+          {% elif is_state('input_boolean.caldaia_filtro_pilota_avatto','off') and is_state('binary_sensor.central_configuration_caldaia_soglia_due_testine','on') and states('sensor.nb_device_active_for_boiler')|int(0) > 1 %}
+            {{ as_timestamp(states['binary_sensor.central_configuration_caldaia_soglia_due_testine'].last_changed) + 120 }}
+          {% else %}0{% endif %}
+        {% else %}0{% endif %}
+      stop_deadline: |-
+        {% if is_state('automation.caldaia_filtro_richiesta_vtherm','on') and is_state('climate.termostato_ingresso','heat')
+              and is_state('sensor.nb_device_active_for_boiler','1') and not is_state('binary_sensor.caldaia_richiesta_manuale_oikos','on') %}
+          {{ as_timestamp(states['sensor.nb_device_active_for_boiler'].last_changed) + 120 }}
+        {% else %}0{% endif %}
+  - variables:
+      remaining_seconds: '{{ [0, ((start_deadline | float(0)) - as_timestamp(now())) | round(0,"ceil") | int] |
+        max }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ (remaining_seconds | int(0)) > 0 }}'
+      - condition: template
+        value_template: '{{ not is_state(''timer.caldaia_attesa_avvio'',''active'') or ((as_timestamp(state_attr(''timer.caldaia_attesa_avvio'',''finishes_at''),0)
+          - (start_deadline | float(0))) | abs > 2) }}'
+      sequence:
+      - data:
+          duration: '{{ remaining_seconds | int(0) }}'
+        target:
+          entity_id: timer.caldaia_attesa_avvio
+        action: timer.start
+    - conditions:
+      - condition: template
+        value_template: '{{ (remaining_seconds | int(0)) == 0 }}'
+      - state:
+        - active
+        - paused
+        condition: state
+        entity_id: timer.caldaia_attesa_avvio
+      sequence:
+      - target:
+          entity_id: timer.caldaia_attesa_avvio
+        action: timer.cancel
+  - variables:
+      remaining_seconds: '{{ [0, ((stop_deadline | float(0)) - as_timestamp(now())) | round(0,"ceil") | int] | max
+        }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ (remaining_seconds | int(0)) > 0 }}'
+      - condition: template
+        value_template: '{{ not is_state(''timer.caldaia_attesa_spegnimento'',''active'') or ((as_timestamp(state_attr(''timer.caldaia_attesa_spegnimento'',''finishes_at''),0)
+          - (stop_deadline | float(0))) | abs > 2) }}'
+      sequence:
+      - data:
+          duration: '{{ remaining_seconds | int(0) }}'
+        target:
+          entity_id: timer.caldaia_attesa_spegnimento
+        action: timer.start
+    - conditions:
+      - condition: template
+        value_template: '{{ (remaining_seconds | int(0)) == 0 }}'
+      - state:
+        - active
+        - paused
+        condition: state
+        entity_id: timer.caldaia_attesa_spegnimento
+      sequence:
+      - target:
+          entity_id: timer.caldaia_attesa_spegnimento
+        action: timer.cancel
+  description: Mostra le attese del filtro caldaia in due timer Home Assistant. Le scadenze vengono ricalcolate
+    dagli stati del filtro, senza inviare comandi alla caldaia.
+  mode: queued
+  alias: Caldaia sincronizza timer
