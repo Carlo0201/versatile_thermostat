@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from datetime import timedelta, datetime
 
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
 from homeassistant.core import Event, HomeAssistant, State, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval, async_call_later
@@ -18,8 +18,9 @@ from homeassistant.components.climate import (
     ClimateEntityFeature,
 )
 
-from .commons import round_to_nearest, write_event_log
+from .avatto import heating_setpoint, room_demand
 from .base_thermostat import BaseThermostat, ConfigData
+from .commons import round_to_nearest, write_event_log
 from .pi_algorithm import PITemperatureRegulator
 
 from .const import *  # pylint: disable=wildcard-import, unused-wildcard-import
@@ -62,6 +63,8 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
         """Initialize the thermostat over switch."""
         self._auto_regulation_mode: str | None = None
         self._regulation_algo = None
+        self._avatto_room_control = False
+        self._avatto_demand: bool | None = None
         self._regulated_target_temp: float | None = None
         self._auto_regulation_dtemp: float | None = None
         self._auto_regulation_period_min: int | None = None
@@ -140,6 +143,12 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
         self._auto_regulation_use_device_temp = config_entry.get(
             CONF_AUTO_REGULATION_USE_DEVICE_TEMP, False
         )
+        self._avatto_room_control = (
+            config_entry.get(CONF_AVATTO_ROOM_CONTROL, False)
+            and self.temperature_unit == UnitOfTemperature.CELSIUS
+            and not self.have_valve_regulation
+            and not self.ac_mode
+        )
 
     @property
     def is_over_climate(self) -> bool:
@@ -207,9 +216,11 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
 
     @overrides
     async def _before_underlying_hvac_mode_change(self, _command_cause: str | None = None):
-        """Send the regulated temperature first when a plugin adjusts it and a device is off, so that the device does not start at its own
-        stored setpoint. A device which already runs, or which changed its mode by itself, does not need it."""
-        if _command_cause == COMMAND_CAUSE_UNDERLYING_TRACKING or not self._setpoint_modifiers:
+        """Prepare the setpoint of an off device before changing its mode."""
+        if self.vtherm_hvac_mode != VThermHvacMode_HEAT:
+            self._avatto_demand = None
+        avatto = self._avatto_room_control and self.vtherm_hvac_mode == VThermHvacMode_HEAT
+        if _command_cause == COMMAND_CAUSE_UNDERLYING_TRACKING or not (avatto or self._setpoint_modifiers):
             return
         if self.vtherm_hvac_mode in (VThermHvacMode_HEAT, VThermHvacMode_COOL) and any(VThermHvacMode_OFF == under.hvac_mode for under in self._underlyings):
             await self._send_regulated_temperature(force=True, _command_cause=_command_cause)
@@ -267,7 +278,13 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
             force,
         )
 
-        if not force and not self.check_auto_regulation_period_min(self.now):
+        demand_changed = False
+        if self._avatto_room_control and self.vtherm_hvac_mode == VThermHvacMode_HEAT:
+            demand = room_demand(self.current_temperature, self.target_temperature, self._avatto_demand is True)
+            demand_changed = demand != self._avatto_demand
+            self._avatto_demand = demand
+
+        if not force and not demand_changed and not self.check_auto_regulation_period_min(self.now):
             self.do_send_regulated_temp_later(_command_cause)
             return
 
@@ -300,6 +317,10 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
 
         if self._setpoint_modifiers:
             new_regulated_temp = self._adjust_regulated_temperature(new_regulated_temp, regulation_step, _command_cause)
+        if self._avatto_demand is True:
+            new_regulated_temp = heating_setpoint(
+                round_to_nearest(new_regulated_temp, regulation_step), self.target_temperature, regulation_step
+            )
 
         _LOGGER.info(
             "%s - Regulated temp have changed to %.1f. Resend it to underlyings",
@@ -315,6 +336,7 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
             if (
                 # current_temperature is set
                 self.current_temperature is not None
+                and self._avatto_demand is None
                 # regulation can use the device_temp
                 and self.auto_regulation_use_device_temp
                 # and we have access to the device temp
@@ -323,13 +345,19 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
                 offset_temp = device_temp - self.current_temperature
 
             target_temp = round_to_nearest(new_regulated_temp + offset_temp, regulation_step)
+            if self._avatto_demand is False:
+                # Keep the TRV in heat mode, with its own minimum for standby.
+                # Presets, window protection and external inhibition retain mode control.
+                minimum = under.min_temp
+                target_temp = self.min_temp if minimum is None else minimum
 
             # The dtemp is the difference between the new target temp and the last sent temperature to the underlying.
             # If the dtemp is too low, we consider that there is no need to send a new temperature to the underlying because it
             # will not have any effect on the device. This avoid to send too many temperature changes to the underlying.
             dtemp = target_temp - (under.last_sent_temperature if under.last_sent_temperature else 0)
 
-            if not force and abs(dtemp) < (self._auto_regulation_dtemp or 0):
+            below_threshold = abs(dtemp) < (self._auto_regulation_dtemp or 0)
+            if not force and (dtemp == 0 if demand_changed else below_threshold):
                 _LOGGER.info(
                     "%s - dtemp (%.1f) is < %.1f -> forget the regulation send for %s",
                     self,
@@ -726,6 +754,9 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
                 "auto_regulation_mode": self._auto_regulation_mode,
                 "regulation_accumulated_error": self._regulation_algo.accumulated_error,
             }
+
+        if self._avatto_room_control:
+            vtherm_over_climate_data["avatto_room_demand"] = self._avatto_demand
 
         if self.has_sync_entities:
             under_attributes = {}
