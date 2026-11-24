@@ -239,6 +239,34 @@ CONF_CENTRAL_BOILER_ACTIVATION_DELAY_SEC = "central_boiler_activation_delay_sec"
 CONF_KEEP_ALIVE_BOILER_DELAY_SEC = "keep_alive_boiler_delay_sec"
 
 CONF_USED_BY_CENTRAL_BOILER = "used_by_controls_central_boiler"
+
+# Heating orchestration (M2-A, boiler observer). The section lives in the data of
+# the central configuration entry; when the key is absent the feature is
+# disabled and nothing changes. Keys are shared with heating_boiler_collector.py.
+CONF_HEATING_ORCHESTRATION = "heating_orchestration"
+CONF_HO_MODE = "mode"
+CONF_HO_MASTER = "master_entity_id"
+CONF_HO_CENTRAL_MODE = "central_mode_entity_id"
+CONF_HO_ACTIVE_COUNT = "active_count_entity_id"
+CONF_HO_MANUAL = "manual_request_entity_id"
+CONF_HO_PILOT_FILTER = "pilot_filter_entity_id"
+CONF_HO_PILOT_READY = "pilot_ready_entity_id"
+CONF_HO_CONSENTS = "consent_entity_ids"
+CONF_HO_LEGACY_CYCLE = "legacy_cycle_entity_id"
+CONF_HO_ROOMS = "rooms"
+CONF_HO_ROOM_KEY = "room_key"
+CONF_HO_ROOM_CLIMATE = "climate_entity_id"
+CONF_HO_ROOM_PILOT_FILTER = "pilot_filter"
+CONF_HO_ROOM_PDC = "pdc"
+CONF_HO_PDC_SPLIT = "split_entity_id"
+CONF_HO_PDC_SESSION = "session_entity_id"
+CONF_HO_ROOMS_TO_REMOVE = "rooms_to_remove"
+HO_MODE_DISABLED = "disabled"
+HO_MODE_OBSERVE = "observe"
+HO_SELECTABLE_MODES = [HO_MODE_DISABLED, HO_MODE_OBSERVE]
+HO_BOILER_SENSOR_SUFFIX = "_heating_orchestration_boiler"
+HO_STORAGE_VERSION = 1
+HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
 CONF_WINDOW_ACTION = "window_action"
 
 CONF_AUTO_START_STOP_LEVEL = "auto_start_stop_level"

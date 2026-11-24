@@ -33,6 +33,16 @@ from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAI
 
 
 from .const import *  # pylint: disable=wildcard-import, unused-wildcard-import
+from .heating_boiler_collector import (
+    ACTIVE_COUNT_DOMAINS,
+    BINARY_INPUT_DOMAINS,
+    CENTRAL_MODE_DOMAINS,
+    LEGACY_CYCLE_DOMAINS,
+    MASTER_DOMAINS,
+    ROOM_DOMAINS,
+    SESSION_DOMAINS,
+    SPLIT_DOMAINS,
+)
 
 
 def get_prop_function_options() -> list[str]:
@@ -235,6 +245,39 @@ STEP_CENTRAL_BOILER_SCHEMA = vol.Schema(
         vol.Optional(CONF_KEEP_ALIVE_BOILER_DELAY_SEC, default=DEFAULT_KEEP_ALIVE_BOILER_DELAY_SEC): selector.NumberSelector(
             selector.NumberSelectorConfig(min=0, max=3600, step=10, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="s")
         ),
+    }
+)
+
+def _ho_entity_selector(domains, multiple: bool = False) -> selector.EntitySelector:
+    """Entity selector restricted to the domains accepted by the orchestration collector."""
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=list(domains), multiple=multiple))
+
+
+# Boiler orchestration (M2-A): central entities. ``control`` is not selectable.
+STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_MODE, default=HO_MODE_DISABLED): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(HO_SELECTABLE_MODES), translation_key="heating_orchestration_mode", mode=selector.SelectSelectorMode.LIST)
+        ),
+        vol.Optional(CONF_HO_MASTER): _ho_entity_selector(MASTER_DOMAINS),
+        vol.Optional(CONF_HO_CENTRAL_MODE): _ho_entity_selector(CENTRAL_MODE_DOMAINS),
+        vol.Optional(CONF_HO_ACTIVE_COUNT): _ho_entity_selector(ACTIVE_COUNT_DOMAINS),
+        vol.Optional(CONF_HO_MANUAL): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+        vol.Optional(CONF_HO_PILOT_FILTER): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+        vol.Optional(CONF_HO_PILOT_READY): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+        vol.Optional(CONF_HO_CONSENTS): _ho_entity_selector(BINARY_INPUT_DOMAINS, multiple=True),
+        vol.Optional(CONF_HO_LEGACY_CYCLE): _ho_entity_selector(LEGACY_CYCLE_DOMAINS),
+    }
+)
+
+# Boiler orchestration (M2-A): one room of the list (flat form, stored as a nested element).
+STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_ROOM_KEY): selector.TextSelector(),
+        vol.Required(CONF_HO_ROOM_CLIMATE): _ho_entity_selector(ROOM_DOMAINS),
+        vol.Optional(CONF_HO_ROOM_PILOT_FILTER, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_HO_PDC_SPLIT): _ho_entity_selector(SPLIT_DOMAINS),
+        vol.Optional(CONF_HO_PDC_SESSION): _ho_entity_selector(SESSION_DOMAINS),
     }
 )
 

@@ -1,0 +1,191 @@
+{
+  "source_entity_id": "automation.camera_carlo_protezioni_override_condizionatore",
+  "ha_config_hash": "77067e449cca9520",
+  "validation": null,
+  "config": {
+    "id": "1795253065096",
+    "alias": "Camera Carlo - Protezioni override condizionatore",
+    "description": "Anche in manuale: stop a 2700 W, dati potenza assenti/stantii, finestra aperta per 120 s o indisponibile per 30 s o arresto centrale. Override conservato dopo lo stop, nessuna ripartenza automatica immediata.",
+    "triggers": [
+      {
+        "trigger": "numeric_state",
+        "entity_id": "sensor.energy_meter_power_a_casa",
+        "above": 2699.99
+      },
+      {
+        "trigger": "state",
+        "entity_id": "sensor.energy_meter_power_a_casa",
+        "to": [
+          "unknown",
+          "unavailable"
+        ]
+      },
+      {
+        "trigger": "state",
+        "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+        "to": [
+          "on",
+          "unknown",
+          "unavailable"
+        ],
+        "for": {
+          "seconds": 30
+        }
+      },
+      {
+        "trigger": "state",
+        "entity_id": "select.central_mode",
+        "to": "Stopped"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "to": null
+      },
+      {
+        "trigger": "time_pattern",
+        "seconds": "/30"
+      }
+    ],
+    "conditions": [
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_carlo_pdc_override",
+        "state": "on"
+      },
+      {
+        "condition": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "state": [
+          "heat",
+          "cool",
+          "auto",
+          "dry",
+          "fan_only",
+          "heat_cool"
+        ]
+      },
+      {
+        "condition": "or",
+        "conditions": [
+          {
+            "condition": "template",
+            "value_template": "{% set p=states('sensor.energy_meter_power_a_casa')|float(none) %}{% set age=as_timestamp(now())-as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported,0) %}{{ p is none or p<0 or p>=2700 or age>45 or is_state('select.central_mode','Stopped') or false }}"
+          },
+          {
+            "condition": "state",
+            "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+            "state": "on",
+            "for": {
+              "seconds": 120
+            }
+          },
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "not",
+                "conditions": [
+                  {
+                    "condition": "state",
+                    "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                    "state": [
+                      "on",
+                      "off"
+                    ]
+                  }
+                ]
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ as_timestamp(now())-as_timestamp(states['binary_sensor.finestra_interna_camera_carlo'].last_changed,0)>=30 }}"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "action": "climate.set_hvac_mode",
+        "target": {
+          "entity_id": "climate.camera_carlo_pompa_di_calore"
+        },
+        "data": {
+          "hvac_mode": "off"
+        }
+      },
+      {
+        "if": [
+          {
+            "condition": "not",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "off"
+              }
+            ]
+          }
+        ],
+        "then": [
+          {
+            "action": "climate.set_hvac_mode",
+            "target": {
+              "entity_id": "climate.camera_carlo_condizionatore"
+            },
+            "data": {
+              "hvac_mode": "off"
+            }
+          }
+        ]
+      },
+      {
+        "wait_template": "{{ is_state('climate.camera_carlo_condizionatore','off') }}",
+        "timeout": {
+          "seconds": 20
+        },
+        "continue_on_timeout": true
+      },
+      {
+        "if": [
+          {
+            "condition": "not",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "off"
+              }
+            ]
+          }
+        ],
+        "then": [
+          {
+            "action": "persistent_notification.create",
+            "data": {
+              "notification_id": "carlo_pdc_spegnimento_non_confermato",
+              "title": "Camera Carlo: spegnimento non confermato",
+              "message": "Il condizionatore non conferma OFF. L'override e la sospensione del radiatore restano attivi. Verificare il dispositivo e SmartThings."
+            }
+          },
+          {
+            "stop": "Spegnimento non confermato: nessun rilascio al radiatore",
+            "error": true
+          }
+        ]
+      },
+      {
+        "action": "input_boolean.turn_off",
+        "target": {
+          "entity_id": "input_boolean.camera_carlo_pdc_in_gestione"
+        }
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 20
+    }
+  }
+}

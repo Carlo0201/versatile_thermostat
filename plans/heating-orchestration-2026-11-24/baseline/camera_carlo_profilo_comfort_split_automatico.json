@@ -1,0 +1,669 @@
+{
+  "source_entity_id": "automation.camera_carlo_profilo_comfort_split_automatico",
+  "ha_config_hash": "24db2881ddfde1a5",
+  "validation": null,
+  "config": {
+    "id": "1795162110756",
+    "alias": "Camera Carlo - Profilo comfort split automatico",
+    "description": "Profili Europe/Rome solo con PDC automatica in gestione e split/vTherm in heat: 21–07 Quiet senza comando ventola, alette ferme; 07–09 low/vertical; 09–19 medium con scarto stanza ≥1 °C, low a ≤0,5 °C, mantiene velocità fra le soglie; 19–21 low/alette ferme. Scarto rispetto al setpoint del vTherm radiatore. Nessun comando di accensione, spegnimento o temperatura. Beep off. Display off dopo avvio e cambi funzione, attesa 5 s, verifica 8 s e secondo tentativo verificato. Controllo ogni minuto per recuperare eventi durante una sequenza; comandi solo se necessari. Disattivare questa automazione annulla la gestione dei profili. Override manuale condizionatore: precedenza per 120 minuti; sequenze automatiche interrotte prima dei comandi.",
+    "triggers": [
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "to": "heat",
+        "id": "avvio"
+      },
+      {
+        "trigger": "switch.turned_on",
+        "target": {
+          "entity_id": [
+            "input_boolean.camera_carlo_pdc_automatica",
+            "input_boolean.camera_carlo_pdc_in_gestione",
+            "switch.camera_carlo_condizionatore_illuminazione_del_display",
+            "switch.camera_carlo_condizionatore_effetto_sonoro"
+          ]
+        },
+        "id": "gestione_o_luci"
+      },
+      {
+        "trigger": "temperature.changed",
+        "target": {
+          "entity_id": "sensor.temperatura_camera_carlo"
+        },
+        "options": {
+          "threshold": {
+            "type": "any"
+          }
+        },
+        "id": "temperatura"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.trv_vtherm_camera_carlo",
+        "attribute": "temperature",
+        "id": "setpoint"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "attribute": "preset_mode",
+        "id": "funzione"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "attribute": "fan_mode",
+        "id": "funzione"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "attribute": "swing_mode",
+        "id": "funzione"
+      },
+      {
+        "trigger": "time",
+        "at": [
+          "07:00:00",
+          "09:00:00",
+          "19:00:00",
+          "21:00:00"
+        ],
+        "id": "fascia"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start",
+        "id": "riavvio"
+      },
+      {
+        "trigger": "time_pattern",
+        "minutes": "/1",
+        "id": "recupero"
+      }
+    ],
+    "conditions": [
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_carlo_pdc_override",
+        "state": "off"
+      },
+      {
+        "condition": "and",
+        "conditions": [
+          {
+            "condition": "state",
+            "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+            "state": "on"
+          },
+          {
+            "condition": "state",
+            "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+            "state": "on"
+          },
+          {
+            "condition": "state",
+            "entity_id": "climate.camera_carlo_condizionatore",
+            "state": "heat"
+          },
+          {
+            "condition": "state",
+            "entity_id": "climate.camera_carlo_pompa_di_calore",
+            "state": "heat"
+          },
+          {
+            "condition": "state",
+            "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+            "state": "off"
+          },
+          {
+            "condition": "state",
+            "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+            "state": "on"
+          },
+          {
+            "condition": "numeric_state",
+            "entity_id": "sensor.energy_meter_power_a_casa",
+            "below": 2700
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "delay": {
+          "seconds": 2
+        }
+      },
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_carlo_pdc_override",
+        "state": "off"
+      },
+      {
+        "variables": {
+          "desired_preset": "none",
+          "desired_swing": "off",
+          "desired_fan": "low"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "time",
+                "after": "21:00:00",
+                "before": "07:00:00"
+              }
+            ],
+            "sequence": [
+              {
+                "variables": {
+                  "desired_preset": "quiet",
+                  "desired_fan": "none"
+                }
+              }
+            ]
+          },
+          {
+            "conditions": [
+              {
+                "condition": "time",
+                "after": "07:00:00",
+                "before": "09:00:00"
+              }
+            ],
+            "sequence": [
+              {
+                "variables": {
+                  "desired_swing": "vertical"
+                }
+              }
+            ]
+          },
+          {
+            "conditions": [
+              {
+                "condition": "time",
+                "after": "09:00:00",
+                "before": "19:00:00"
+              }
+            ],
+            "sequence": [
+              {
+                "variables": {
+                  "desired_swing": "vertical",
+                  "desired_fan": "{% set t = states('sensor.temperatura_camera_carlo') | float(none) %}{% set target = state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none) %}{% if t is none or target is none %}low{% else %}{% set gap = (target - t) | round(3) %}{{ 'medium' if gap >= 1 or (gap > 0.5 and is_state_attr('climate.camera_carlo_condizionatore', 'fan_mode', 'medium')) else 'low' }}{% endif %}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "variables": {
+          "functions_changed": "{{ state_attr('climate.camera_carlo_condizionatore', 'preset_mode') != desired_preset or state_attr('climate.camera_carlo_condizionatore', 'swing_mode') != desired_swing or (desired_preset == 'none' and state_attr('climate.camera_carlo_condizionatore', 'fan_mode') != desired_fan) }}"
+        }
+      },
+      {
+        "if": [
+          {
+            "condition": "state",
+            "entity_id": "switch.camera_carlo_condizionatore_effetto_sonoro",
+            "state": "on"
+          }
+        ],
+        "then": [
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_override",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_pompa_di_calore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                "state": "on"
+              },
+              {
+                "condition": "numeric_state",
+                "entity_id": "sensor.energy_meter_power_a_casa",
+                "below": 2700
+              }
+            ]
+          },
+          {
+            "action": "switch.turn_off",
+            "target": {
+              "entity_id": "switch.camera_carlo_condizionatore_effetto_sonoro"
+            },
+            "continue_on_error": true
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ state_attr('climate.camera_carlo_condizionatore', 'preset_mode') != desired_preset }}"
+          }
+        ],
+        "then": [
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_override",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_pompa_di_calore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                "state": "on"
+              },
+              {
+                "condition": "numeric_state",
+                "entity_id": "sensor.energy_meter_power_a_casa",
+                "below": 2700
+              }
+            ]
+          },
+          {
+            "action": "climate.set_preset_mode",
+            "target": {
+              "entity_id": "climate.camera_carlo_condizionatore"
+            },
+            "data": {
+              "preset_mode": "{{ desired_preset }}"
+            },
+            "continue_on_error": true
+          },
+          {
+            "wait_template": "{{ state_attr('climate.camera_carlo_condizionatore', 'preset_mode') == desired_preset }}",
+            "timeout": {
+              "seconds": 8
+            },
+            "continue_on_timeout": true
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ desired_preset == 'none' and is_state_attr('climate.camera_carlo_condizionatore', 'preset_mode', 'none') and state_attr('climate.camera_carlo_condizionatore', 'fan_mode') != desired_fan }}"
+          }
+        ],
+        "then": [
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_override",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_pompa_di_calore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                "state": "on"
+              },
+              {
+                "condition": "numeric_state",
+                "entity_id": "sensor.energy_meter_power_a_casa",
+                "below": 2700
+              }
+            ]
+          },
+          {
+            "action": "climate.set_fan_mode",
+            "target": {
+              "entity_id": "climate.camera_carlo_condizionatore"
+            },
+            "data": {
+              "fan_mode": "{{ desired_fan }}"
+            },
+            "continue_on_error": true
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ state_attr('climate.camera_carlo_condizionatore', 'swing_mode') != desired_swing }}"
+          }
+        ],
+        "then": [
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_override",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_pompa_di_calore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                "state": "on"
+              },
+              {
+                "condition": "numeric_state",
+                "entity_id": "sensor.energy_meter_power_a_casa",
+                "below": 2700
+              }
+            ]
+          },
+          {
+            "action": "climate.set_swing_mode",
+            "target": {
+              "entity_id": "climate.camera_carlo_condizionatore"
+            },
+            "data": {
+              "swing_mode": "{{ desired_swing }}"
+            },
+            "continue_on_error": true
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "or",
+            "conditions": [
+              {
+                "condition": "trigger",
+                "id": "avvio"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ functions_changed }}"
+              },
+              {
+                "condition": "not",
+                "conditions": [
+                  {
+                    "condition": "state",
+                    "entity_id": "switch.camera_carlo_condizionatore_illuminazione_del_display",
+                    "state": "off"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "then": [
+          {
+            "delay": {
+              "seconds": 5
+            }
+          },
+          {
+            "condition": "and",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_override",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_condizionatore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_carlo_pompa_di_calore",
+                "state": "heat"
+              },
+              {
+                "condition": "state",
+                "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                "state": "on"
+              },
+              {
+                "condition": "numeric_state",
+                "entity_id": "sensor.energy_meter_power_a_casa",
+                "below": 2700
+              }
+            ]
+          },
+          {
+            "action": "switch.turn_off",
+            "target": {
+              "entity_id": "switch.camera_carlo_condizionatore_illuminazione_del_display"
+            },
+            "continue_on_error": true
+          },
+          {
+            "wait_template": "{{ is_state('switch.camera_carlo_condizionatore_illuminazione_del_display', 'off') }}",
+            "timeout": {
+              "seconds": 8
+            },
+            "continue_on_timeout": true
+          },
+          {
+            "if": [
+              {
+                "condition": "not",
+                "conditions": [
+                  {
+                    "condition": "state",
+                    "entity_id": "switch.camera_carlo_condizionatore_illuminazione_del_display",
+                    "state": "off"
+                  }
+                ]
+              }
+            ],
+            "then": [
+              {
+                "condition": "and",
+                "conditions": [
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_carlo_pdc_override",
+                    "state": "off"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_carlo_pdc_automatica",
+                    "state": "on"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+                    "state": "on"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "climate.camera_carlo_condizionatore",
+                    "state": "heat"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "climate.camera_carlo_pompa_di_calore",
+                    "state": "heat"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "binary_sensor.finestra_interna_camera_carlo",
+                    "state": "off"
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+                    "state": "on"
+                  },
+                  {
+                    "condition": "numeric_state",
+                    "entity_id": "sensor.energy_meter_power_a_casa",
+                    "below": 2700
+                  }
+                ]
+              },
+              {
+                "action": "switch.turn_off",
+                "target": {
+                  "entity_id": "switch.camera_carlo_condizionatore_illuminazione_del_display"
+                },
+                "continue_on_error": true
+              },
+              {
+                "wait_template": "{{ is_state('switch.camera_carlo_condizionatore_illuminazione_del_display', 'off') }}",
+                "timeout": {
+                  "seconds": 8
+                },
+                "continue_on_timeout": true
+              }
+            ]
+          },
+          {
+            "if": [
+              {
+                "condition": "not",
+                "conditions": [
+                  {
+                    "condition": "state",
+                    "entity_id": "switch.camera_carlo_condizionatore_illuminazione_del_display",
+                    "state": "off"
+                  }
+                ]
+              }
+            ],
+            "then": [
+              {
+                "stop": "Display non confermato spento dopo due tentativi",
+                "error": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 20
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "source_entity_id": "automation.camera_carlo_registro_ciclo_persistente_pdc",
+  "ha_config_hash": "b7a57f5aa8d84d4c",
+  "validation": null,
+  "config": {
+    "id": "1795421519759",
+    "alias": "Camera Carlo - Registro ciclo persistente PdC",
+    "description": "Registra HEAT/OFF confermati da SmartThings. Preserva tempi e target di avvio attraverso riavvii e indisponibilità. Non invia comandi fisici. Prima osservazione conservativa: tempo corrente, senza inventare uno stato precedente.",
+    "triggers": [
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_carlo_condizionatore",
+        "to": null
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      }
+    ],
+    "conditions": [],
+    "actions": [
+      {
+        "variables": {
+          "mode": "{{ trigger.to_state.state if trigger is defined and trigger is mapping and trigger.get('platform') == 'state' and trigger.get('to_state') is not none else states('climate.camera_carlo_condizionatore') }}",
+          "previous": "{{ states('input_text.camera_carlo_pdc_ciclo') | from_json({}) }}"
+        }
+      },
+      {
+        "condition": "template",
+        "value_template": "{{ previous is mapping and mode in ['off','heat','cool','auto','dry','fan_only','heat_cool'] and (previous.get('m') != mode or (mode == 'heat' and previous.get('on') | float(none) is none) or (mode == 'off' and previous.get('off') | float(none) is none)) }}"
+      },
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.camera_carlo_pdc_ciclo"
+        },
+        "data": {
+          "value": "{% set ts = as_timestamp(now()) | int %}{{ {'m':mode, 'on':(ts if mode=='heat' else previous.get('on')), 'off':(ts if mode=='off' else previous.get('off')), 'target':((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) if mode=='heat' else previous.get('target'))} | to_json }}"
+        }
+      }
+    ],
+    "mode": "queued",
+    "max": 20,
+    "trace": {
+      "stored_traces": 20
+    }
+  }
+}

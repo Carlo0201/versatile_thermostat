@@ -1,0 +1,143 @@
+{
+  "source_entity_id": "automation.camera_diego_luisa_fine_override_condizionatore",
+  "ha_config_hash": "608b26d0878b8a84",
+  "validation": null,
+  "config": {
+    "id": "1795251168230",
+    "alias": "Camera Diego Luisa - Fine override condizionatore",
+    "description": "Ripresa manuale, scadenza timer/data e recupero al riavvio. Una scadenza durante HA spento non viene persa. I controlli periodici non prolungano la scadenza.",
+    "triggers": [
+      {
+        "trigger": "state",
+        "entity_id": "input_button.riprendi_automatico_condizionatore_camera_diego_luisa",
+        "id": "riprendi"
+      },
+      {
+        "trigger": "time",
+        "at": "input_datetime.camera_diego_luisa_pdc_override_fine",
+        "id": "scadenza"
+      },
+      {
+        "trigger": "event",
+        "event_type": "timer.finished",
+        "event_data": {
+          "entity_id": "timer.override_condizionatore_camera_diego_luisa"
+        },
+        "id": "scadenza"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start",
+        "id": "avvio"
+      },
+      {
+        "trigger": "time_pattern",
+        "minutes": "/1",
+        "id": "recupero"
+      }
+    ],
+    "conditions": [],
+    "actions": [
+      {
+        "if": [
+          {
+            "condition": "trigger",
+            "id": "avvio"
+          },
+          {
+            "condition": "state",
+            "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+            "state": "off"
+          },
+          {
+            "condition": "state",
+            "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione",
+            "state": "off"
+          },
+          {
+            "condition": "template",
+            "value_template": "{{ states('climate.camera_diego_luisa_condizionatore_aria_stanza') in ['heat','cool','auto','dry','fan_only','heat_cool'] }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "script.camera_diego_luisa_pdc_override_avvia"
+          },
+          {
+            "action": "script.camera_diego_luisa_pdc_override_sincronizza"
+          }
+        ]
+      },
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+        "state": "on"
+      },
+      {
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "or",
+                "conditions": [
+                  {
+                    "condition": "trigger",
+                    "id": [
+                      "riprendi",
+                      "scadenza"
+                    ]
+                  },
+                  {
+                    "condition": "template",
+                    "value_template": "{{ as_timestamp(states('input_datetime.camera_diego_luisa_pdc_override_fine'),0) <= as_timestamp(now()) }}"
+                  }
+                ]
+              }
+            ],
+            "sequence": [
+              {
+                "action": "script.camera_diego_luisa_pdc_riprendi_automatico"
+              }
+            ]
+          }
+        ],
+        "default": [
+          {
+            "if": [
+              {
+                "condition": "trigger",
+                "id": "avvio"
+              }
+            ],
+            "then": [
+              {
+                "wait_template": "{{ states('climate.camera_diego_luisa_condizionatore_aria_stanza') in ['off','heat','cool','auto','dry','fan_only','heat_cool'] and has_value('climate.camera_diego_luisa_pompa_di_calore') }}",
+                "timeout": {
+                  "seconds": 45
+                },
+                "continue_on_timeout": false
+              },
+              {
+                "action": "timer.start",
+                "target": {
+                  "entity_id": "timer.override_condizionatore_camera_diego_luisa"
+                },
+                "data": {
+                  "duration": "{{ [1,(as_timestamp(states('input_datetime.camera_diego_luisa_pdc_override_fine'),0)-as_timestamp(now()))|int]|max }}"
+                }
+              },
+              {
+                "action": "script.camera_diego_luisa_pdc_override_sincronizza"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 20
+    }
+  }
+}

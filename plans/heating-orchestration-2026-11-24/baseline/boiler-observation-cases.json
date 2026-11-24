@@ -1,0 +1,1492 @@
+{
+  "fixtures": [
+    {
+      "name": "eligible_physical_radiator",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 1,
+      "ok": true
+    },
+    {
+      "name": "window_open",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "on"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "window_unknown",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "unavailable"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "bypass_explicit",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "on"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off",
+              "is_window_bypass": true
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 1,
+      "ok": true
+    },
+    {
+      "name": "pdc_managed",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "on"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "pdc_unavailable",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "unavailable"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "inhibited",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00",
+              "inhibition": {
+                "inhibited": true
+              }
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "inhibition_unknown",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00",
+              "inhibition": {
+                "inhibited": null
+              }
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "safety_unknown",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "unavailable"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "count_unknown",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "unknown",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": false
+    },
+    {
+      "name": "count_mismatch",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "2",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": false
+    },
+    {
+      "name": "missing_ids",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {}
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": false
+    },
+    {
+      "name": "stale_temperature",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1969-12-31T22:00:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "target_missing",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": null,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "valve_idle",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "idle"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "room_demand_false",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Heat only"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": false
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 0,
+      "ok": true
+    },
+    {
+      "name": "central_stopped",
+      "snapshot": {
+        "sensor.nb_device_active_for_boiler": {
+          "state": "1",
+          "attributes": {
+            "active_device_ids": [
+              "climate.trv_camera_carlo"
+            ]
+          }
+        },
+        "select.central_mode": {
+          "state": "Stopped"
+        },
+        "climate.termostato_ingresso": {
+          "state": "off"
+        },
+        "input_boolean.camera_carlo_pdc_in_gestione": {
+          "state": "off"
+        },
+        "climate.camera_carlo_condizionatore": {
+          "state": "off"
+        },
+        "binary_sensor.window_test": {
+          "state": "off"
+        },
+        "binary_sensor.caldaia_richiesta_manuale_oikos": {
+          "state": "off"
+        },
+        "input_boolean.caldaia_filtro_pilota_avatto": {
+          "state": "off"
+        },
+        "climate.trv_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "hvac_action": "heating"
+          }
+        },
+        "climate.trv_vtherm_camera_carlo": {
+          "state": "heat",
+          "attributes": {
+            "is_ready": true,
+            "current_temperature": 17,
+            "temperature": 18,
+            "specific_states": {
+              "is_initialized": true,
+              "last_temperature_datetime": "1970-01-01T00:33:00+00:00"
+            },
+            "configuration": {
+              "is_used_by_central_boiler": true
+            },
+            "vtherm_over_climate": {
+              "underlying_entities": [
+                "climate.trv_camera_carlo"
+              ],
+              "avatto_room_demand": true
+            },
+            "window_manager": {
+              "window_sensor_entity_id": "binary_sensor.window_test",
+              "window_state": "off"
+            },
+            "safety_manager": {
+              "safety_state": "off"
+            },
+            "power_manager": {
+              "overpowering_state": "off"
+            }
+          }
+        }
+      },
+      "count": 1,
+      "ok": false
+    }
+  ],
+  "results": [
+    {
+      "name": "pdc_managed",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "bypass_explicit",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "camera_carlo",
+            "target": 18,
+            "gap": 1,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "window_unknown",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "eligible_physical_radiator",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "camera_carlo",
+            "target": 18,
+            "gap": 1,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "window_open",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "inhibited",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "pdc_unavailable",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "inhibition_unknown",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "count_unknown",
+      "pass": true,
+      "result": {
+        "ok": false,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "safety_unknown",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "target_missing",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "valve_idle",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "count_mismatch",
+      "pass": true,
+      "result": {
+        "ok": false,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "missing_ids",
+      "pass": true,
+      "result": {
+        "ok": false,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "stale_temperature",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "central_stopped",
+      "pass": true,
+      "result": {
+        "ok": false,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "camera_carlo",
+            "target": 18,
+            "gap": 1,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    },
+    {
+      "name": "room_demand_false",
+      "pass": true,
+      "result": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      }
+    }
+  ]
+}

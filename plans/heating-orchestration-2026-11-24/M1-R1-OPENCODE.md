@@ -1,0 +1,14 @@
+# OpenCode — revisione mirata di M1
+
+**Assegnazione trasferita a Claude il 24 novembre 2026.** Questo file resta come storico; usare `CLAUDE-HANDOFF.md` come incarico corrente. Specifiche R1/R2/E1 e confini rimangono validi.
+
+Leggi `M1-REVIEW.md`, `M1-ESITO.md` e i vincoli dell'incarico M1. Implementa soltanto le correzioni seguenti, preservando le decisioni del motore. Non iniziare M2.
+
+1. **R1, diagnostica:** determina il percorso prima di assegnare gli stati delle condizioni. Nell'avvio manuale gap, pilota, stabilità, cooldown e consenso automatici sono `na`. Nel mantenimento pilota e requisiti di avvio sono `na`. Mantieni applicabili gli ingressi necessari e il conteggio minimo di mantenimento. Rendi diagnosticabile il veto `pilot_ok` della stanza singola, distinto da `pilot_ready`, senza introdurlo come requisito del percorso normale.
+2. Aggiungi regressioni per manuale con gap insufficiente e pilota negato/ignoto, mantenimento con pilota negato/ignoto, singolo con pilota pronto ma qualificazione stanza negata, normale senza qualificazione pilota della stanza. Verifica sia azione/motivo sia stati delle condizioni e assenza di falsi blocchi.
+3. **R2, test portabili:** elimina la dipendenza da stub personali sotto Temp. Il comando con `--noconftest --import-mode=importlib` deve funzionare nell'ambiente minimo con pytest, senza HA e senza PYTHONPATH speciale. Carica il modulo puro in modo isolato o fornisci un runner locale; non modificare `__init__.py` del componente e non contaminare gli import degli altri test con sostituzioni globali dei package. Aggiorna i comandi nella documentazione.
+4. **E1, expected:** il reviewer ha autorizzato la sola errata in `baseline/boiler-decision-errata.json`. Verifica hash/valore originale e applicala a una copia degli expected in memoria. Nessuna modifica alle fixture originali. Elimina l'esclusione di `master_unknown`: confronta tutti i 27 risultati integralmente. Mantieni un test che spieghi perché l'errata è necessaria.
+5. Riesegui suite pura e formattazione; conserva la parità di azione, motivo, scadenza e contesto. `review/verify_m1.py` è una verifica indipendente del reviewer: puoi eseguirla con Jinja2, non adattarla per mascherare divergenze. Non cambiare parametri, soglie, politica o fonti della baseline. Se i test HA non sono eseguibili, riportali come non eseguiti.
+6. Aggiorna `M1-ESITO.md` con sezioni R1/R2/E1, elenco file e hash, comandi portabili e risultati. Non dichiarare eseguiti test soltanto perché erano passati in precedenza.
+
+Restano validi i confini: solo codice, test e documentazione del fork; nessun accesso HA, deploy, riavvio, modifica Oikos, script PowerShell di installazione, commit o push. Non sovrascrivere lavoro di altri. Consegna questa revisione e attendi la review di Codex prima di M2.

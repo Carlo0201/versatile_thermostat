@@ -19,6 +19,7 @@
                 "menu_options": {
                     "main": "Attributi principali",
                     "central_boiler": "Caldaia centralizzata",
+                    "heating_orchestration": "Orchestrazione caldaia",
                     "type": "Sottostanti",
                     "tpi": "Parametri TPI",
                     "features": "Caratteristiche",
@@ -284,6 +285,66 @@
                     "keep_alive_boiler_delay_sec": "Ritardo in secondi per inviare periodicamente il comando della caldaia se keep-alive è abilitato. Impostare su 0 per disabilitare keep-alive."
                 }
             },
+            "heating_orchestration": {
+                "title": "Orchestrazione caldaia",
+                "description": "Osservazione della decisione della caldaia (nessun comando viene inviato). Scegli `observe` per pubblicare un'entità diagnostica con l'azione proposta. `control` non è disponibile. Le stanze si aggiungono nel passo successivo.",
+                "data": {
+                    "mode": "Modalità",
+                    "master_entity_id": "Master caldaia (climate)",
+                    "central_mode_entity_id": "Modo centrale (select)",
+                    "active_count_entity_id": "Sensore valvole attive (con active_device_ids)",
+                    "manual_request_entity_id": "Richiesta manuale",
+                    "pilot_filter_entity_id": "Filtro pilota",
+                    "pilot_ready_entity_id": "Pilota pronto",
+                    "consent_entity_ids": "Consensi nativi (tutti devono essere on)",
+                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)"
+                },
+                "data_description": {
+                    "mode": "disabled: non osserva nulla. observe: valuta e pubblica soltanto, non comanda mai.",
+                    "master_entity_id": "Entità climate del master della caldaia, solo letta",
+                    "central_mode_entity_id": "Select del modo centrale (Auto / Heat only consentono il riscaldamento)",
+                    "active_count_entity_id": "Sensore con il conteggio come stato e l'attributo active_device_ids con le valvole attive",
+                    "manual_request_entity_id": "Entità on/off facoltativa della richiesta manuale della caldaia",
+                    "pilot_filter_entity_id": "Entità on/off facoltativa del filtro pilota",
+                    "pilot_ready_entity_id": "Entità on/off facoltativa: pilota pronto",
+                    "consent_entity_ids": "Almeno un'entità on/off. Il consenso è vero solo quando tutte sono on",
+                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto"
+                }
+            },
+            "heating_orchestration_rooms": {
+                "title": "Stanze dell'orchestrazione caldaia",
+                "description": "Stanze configurate: {rooms}",
+                "menu_options": {
+                    "heating_orchestration_add_room": "Aggiungi una stanza",
+                    "heating_orchestration_remove_room": "Rimuovi stanze",
+                    "heating_orchestration_rooms_done": "Fatto"
+                }
+            },
+            "heating_orchestration_add_room": {
+                "title": "Aggiungi una stanza",
+                "description": "Associa un Versatile Thermostat all'orchestrazione caldaia. Valvole e sensore finestra sono letti dai suoi attributi. Stanze configurate: {rooms}",
+                "data": {
+                    "room_key": "Chiave stanza",
+                    "climate_entity_id": "Termostato della stanza (Versatile Thermostat)",
+                    "pilot_filter": "Soggetta al filtro pilota",
+                    "split_entity_id": "Split PDC (facoltativo)",
+                    "session_entity_id": "Sessione PDC (facoltativa)"
+                },
+                "data_description": {
+                    "room_key": "Identificativo stabile: lettere minuscole, cifre e trattino basso",
+                    "climate_entity_id": "Climate Versatile Thermostat della stanza",
+                    "pilot_filter": "La stanza viene esclusa quando la richiesta Avatto non è vera",
+                    "split_entity_id": "Split della pompa di calore della stanza: il radiatore conta solo se è confermato spento",
+                    "session_entity_id": "Entità on/off della sessione PDC della stanza (obbligatoria insieme allo split)"
+                }
+            },
+            "heating_orchestration_remove_room": {
+                "title": "Rimuovi stanze",
+                "description": "Seleziona le stanze da rimuovere. Stanze configurate: {rooms}",
+                "data": {
+                    "rooms_to_remove": "Stanze da rimuovere"
+                }
+            },
             "valve_regulation": {
                 "title": "Auto-regolazione con valvola",
                 "description": "Configurazione per l'autoregolazione con controllo diretto della valvola",
@@ -403,7 +464,20 @@
             "max_opening_degrees_format": "È previsto un elenco di numeri interi positivi tra 0 e 100 separati da virgola. Esempio: 80, 85, 90",
             "min_max_opening_degrees_inconsistent": "Per ogni dispositivo sottostante, max_opening_degrees deve essere strettamente maggiore di min_opening_degrees. Verificare la configurazione.",
             "valve_control_parameters_cardinality_incorrect": "Gli elenchi dei gradi di apertura minimi e massimi non possono contenere più valori delle valvole configurate",
-            "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel README."
+            "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel README.",
+            "ho_invalid_section": "La sezione di configurazione non è valida",
+            "ho_unsupported_mode": "Modalità non supportata",
+            "ho_control_not_available": "La modalità control non è disponibile",
+            "ho_required": "Campo obbligatorio in modalità observe",
+            "ho_invalid_entity": "Identificativo entità non valido",
+            "ho_invalid_domain": "L'entità ha un dominio non supportato per questo campo",
+            "ho_duplicate_binding": "La stessa entità è usata in due associazioni diverse",
+            "ho_invalid_room_key": "La chiave stanza deve contenere da 1 a 64 lettere minuscole, cifre o trattini bassi",
+            "ho_duplicate_room": "Esiste già una stanza con questa chiave",
+            "ho_pdc_incomplete": "La PDC richiede sia lo split sia la sessione",
+            "ho_too_many_rooms": "Troppe stanze",
+            "ho_too_many_consents": "Troppe entità di consenso",
+            "ho_invalid_room": "Stanza non valida"
         },
         "abort": {
             "already_configured": "Il dispositivo è gia configurato"
@@ -428,6 +502,7 @@
                 "menu_options": {
                     "main": "Attributi principali",
                     "central_boiler": "Caldaia centralizzata",
+                    "heating_orchestration": "Orchestrazione caldaia",
                     "type": "Sottostanti",
                     "tpi": "Parametri TPI",
                     "features": "Caratteristiche",
@@ -690,6 +765,66 @@
                     "keep_alive_boiler_delay_sec": "Ritardo in secondi per inviare periodicamente il comando della caldaia se keep-alive è abilitato. Impostare su 0 per disabilitare keep-alive."
                 }
             },
+            "heating_orchestration": {
+                "title": "Orchestrazione caldaia - {name}",
+                "description": "Osservazione della decisione della caldaia (nessun comando viene inviato). Scegli `observe` per pubblicare un'entità diagnostica con l'azione proposta. `control` non è disponibile. Le stanze si aggiungono nel passo successivo.",
+                "data": {
+                    "mode": "Modalità",
+                    "master_entity_id": "Master caldaia (climate)",
+                    "central_mode_entity_id": "Modo centrale (select)",
+                    "active_count_entity_id": "Sensore valvole attive (con active_device_ids)",
+                    "manual_request_entity_id": "Richiesta manuale",
+                    "pilot_filter_entity_id": "Filtro pilota",
+                    "pilot_ready_entity_id": "Pilota pronto",
+                    "consent_entity_ids": "Consensi nativi (tutti devono essere on)",
+                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)"
+                },
+                "data_description": {
+                    "mode": "disabled: non osserva nulla. observe: valuta e pubblica soltanto, non comanda mai.",
+                    "master_entity_id": "Entità climate del master della caldaia, solo letta",
+                    "central_mode_entity_id": "Select del modo centrale (Auto / Heat only consentono il riscaldamento)",
+                    "active_count_entity_id": "Sensore con il conteggio come stato e l'attributo active_device_ids con le valvole attive",
+                    "manual_request_entity_id": "Entità on/off facoltativa della richiesta manuale della caldaia",
+                    "pilot_filter_entity_id": "Entità on/off facoltativa del filtro pilota",
+                    "pilot_ready_entity_id": "Entità on/off facoltativa: pilota pronto",
+                    "consent_entity_ids": "Almeno un'entità on/off. Il consenso è vero solo quando tutte sono on",
+                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto"
+                }
+            },
+            "heating_orchestration_rooms": {
+                "title": "Stanze dell'orchestrazione caldaia - {name}",
+                "description": "Stanze configurate: {rooms}",
+                "menu_options": {
+                    "heating_orchestration_add_room": "Aggiungi una stanza",
+                    "heating_orchestration_remove_room": "Rimuovi stanze",
+                    "heating_orchestration_rooms_done": "Fatto"
+                }
+            },
+            "heating_orchestration_add_room": {
+                "title": "Aggiungi una stanza - {name}",
+                "description": "Associa un Versatile Thermostat all'orchestrazione caldaia. Valvole e sensore finestra sono letti dai suoi attributi. Stanze configurate: {rooms}",
+                "data": {
+                    "room_key": "Chiave stanza",
+                    "climate_entity_id": "Termostato della stanza (Versatile Thermostat)",
+                    "pilot_filter": "Soggetta al filtro pilota",
+                    "split_entity_id": "Split PDC (facoltativo)",
+                    "session_entity_id": "Sessione PDC (facoltativa)"
+                },
+                "data_description": {
+                    "room_key": "Identificativo stabile: lettere minuscole, cifre e trattino basso",
+                    "climate_entity_id": "Climate Versatile Thermostat della stanza",
+                    "pilot_filter": "La stanza viene esclusa quando la richiesta Avatto non è vera",
+                    "split_entity_id": "Split della pompa di calore della stanza: il radiatore conta solo se è confermato spento",
+                    "session_entity_id": "Entità on/off della sessione PDC della stanza (obbligatoria insieme allo split)"
+                }
+            },
+            "heating_orchestration_remove_room": {
+                "title": "Rimuovi stanze - {name}",
+                "description": "Seleziona le stanze da rimuovere. Stanze configurate: {rooms}",
+                "data": {
+                    "rooms_to_remove": "Stanze da rimuovere"
+                }
+            },
             "valve_regulation": {
                 "title": "Auto-regolazione con valvola - {name}",
                 "description": "Configurazione per l'autoregolazione con controllo diretto della valvola",
@@ -809,7 +944,20 @@
             "max_opening_degrees_format": "È previsto un elenco di numeri interi positivi tra 0 e 100 separati da virgola. Esempio: 80, 85, 90",
             "min_max_opening_degrees_inconsistent": "Per ogni dispositivo sottostante, max_opening_degrees deve essere strettamente maggiore di min_opening_degrees. Verificare la configurazione.",
             "valve_control_parameters_cardinality_incorrect": "Gli elenchi dei gradi di apertura minimi e massimi non possono contenere più valori delle valvole configurate",
-            "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel file README."
+            "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel file README.",
+            "ho_invalid_section": "La sezione di configurazione non è valida",
+            "ho_unsupported_mode": "Modalità non supportata",
+            "ho_control_not_available": "La modalità control non è disponibile",
+            "ho_required": "Campo obbligatorio in modalità observe",
+            "ho_invalid_entity": "Identificativo entità non valido",
+            "ho_invalid_domain": "L'entità ha un dominio non supportato per questo campo",
+            "ho_duplicate_binding": "La stessa entità è usata in due associazioni diverse",
+            "ho_invalid_room_key": "La chiave stanza deve contenere da 1 a 64 lettere minuscole, cifre o trattini bassi",
+            "ho_duplicate_room": "Esiste già una stanza con questa chiave",
+            "ho_pdc_incomplete": "La PDC richiede sia lo split sia la sessione",
+            "ho_too_many_rooms": "Troppe stanze",
+            "ho_too_many_consents": "Troppe entità di consenso",
+            "ho_invalid_room": "Stanza non valida"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -892,6 +1040,12 @@
                 "w": "Watt (W)",
                 "kw": "Chilowatt (kW)",
                 "auto": "Auto (rilevamento automatico dal sensore)"
+            }
+        },
+        "heating_orchestration_mode": {
+            "options": {
+                "disabled": "Disattivata",
+                "observe": "Solo osservazione (nessun comando)"
             }
         }
     },
@@ -981,6 +1135,11 @@
             },
             "boost_ac_away_temp": {
                 "name": "Boost ac fuori casa"
+            }
+        },
+        "sensor": {
+            "heating_orchestration_boiler": {
+                "name": "Orchestrazione caldaia"
             }
         }
     },

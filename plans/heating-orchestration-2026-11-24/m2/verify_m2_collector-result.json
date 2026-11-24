@@ -1,0 +1,16 @@
+{
+  "collector_sha256": "063198555f31b3d39c9f35b95d9b11bfdbb0991176fcc30152842497e479ca2d",
+  "template_sha256": "4966eee6d895b507bbcc6670e267c064d2269217f6e038bf1b559c14c663f4dd",
+  "jinja2": "3.1.6",
+  "fixtures_matching_rendered_and_saved": 17,
+  "fixture_now": 2000.0,
+  "generated_cases_matching": 5000,
+  "seed": 20261124,
+  "generated_coverage": {
+    "ok_true": 2499,
+    "count_ge_1": 3176,
+    "count_ge_2": 2601,
+    "rooms_ge_1": 3176,
+    "count_invalid": 472
+  }
+}

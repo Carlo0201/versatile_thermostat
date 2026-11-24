@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback, Event, State
 from homeassistant.const import (
     UnitOfTime,
     PERCENTAGE,
+    EntityCategory,
 )
 
 from homeassistant.components.sensor import (
@@ -54,6 +55,8 @@ from .const import (
     CONF_TPI_COEF_INT,
     CONF_TPI_COEF_EXT,
     CONF_AUTO_TPI_MODE,
+    CONF_HEATING_ORCHESTRATION,
+    HO_BOILER_SENSOR_SUFFIX,
     overrides,
 )
 
@@ -83,6 +86,9 @@ async def async_setup_entry(
                 NbActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
                 TotalPowerActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
             ]
+        # Boiler orchestration diagnostic, only when the section is configured
+        if CONF_HEATING_ORCHESTRATION in entry.data:
+            entities = (entities or []) + [HeatingOrchestrationBoilerSensor(hass, entry)]
     else:
         entities = [
             LastTemperatureSensor(hass, unique_id, name, entry.data),
@@ -1123,3 +1129,80 @@ class TotalPowerActiveDeviceForBoilerSensor(NbActiveDeviceForBoilerSensor):
         if self._cancel_listener_power is not None:
             self._cancel_listener_power()
             self._cancel_listener_power = None
+
+
+class HeatingOrchestrationBoilerSensor(SensorEntity):
+    """Diagnostic entity of the boiler orchestration (schema v1, CONTRATTI.md section 2).
+
+    The state is the M1 decision reason, or ``disabled`` / ``starting`` /
+    ``error``. The entity only mirrors what the manager publishes; it never
+    evaluates nor commands anything.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "heating_orchestration_boiler"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = False
+    _attr_icon = "mdi:water-boiler"
+    # High frequency or bulky attributes are excluded from the recorder; the
+    # state (reason) and the short attributes stay in the history.
+    _unrecorded_attributes = frozenset(
+        {
+            "conditions",
+            "rooms",
+            "excluded_rooms",
+            "evaluated_at",
+            "generation",
+            "cycle",
+            "inputs",
+        }
+    )
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the diagnostic sensor of the central configuration"""
+        self._hass = hass
+        self._entry_id = entry.entry_id
+        self._device_name = entry.data.get(CONF_NAME)
+        self._attr_unique_id = f"{entry.entry_id}{HO_BOILER_SENSOR_SUFFIX}"
+        self._attr_native_value = None
+        self._attributes: dict = {}
+        self._detach: Callable | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Same device as the other central configuration entities"""
+        return DeviceInfo(
+            entry_type=None,
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._device_name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DOMAIN,
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Diagnostic attributes (JSON safe)"""
+        return self._attributes
+
+    @callback
+    def _async_publish(self, state: str, attributes: dict) -> None:
+        self._attr_native_value = state
+        self._attributes = attributes
+        if self.hass is not None and self.entity_id:
+            self.async_write_ha_state()
+
+    @overrides
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(self._hass)
+        manager = api.heating_orchestration_manager if api else None
+        if manager is None or manager.entry_id != self._entry_id:
+            self._async_publish("error", {"schema_version": 1, "mode": "disabled", "last_error": "manager_missing"})
+            return
+        self._detach = manager.attach(self._async_publish, self.entity_id)
+
+    @overrides
+    async def async_will_remove_from_hass(self) -> None:
+        if self._detach is not None:
+            self._detach()
+            self._detach = None

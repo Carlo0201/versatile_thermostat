@@ -160,7 +160,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
 
+    # Boiler orchestration (observe only in M2-A): created only when the section
+    # exists in the central configuration, so existing entries are unchanged.
+    orchestration = None
+    if entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and CONF_HEATING_ORCHESTRATION in entry.data:
+        orchestration = await api.async_create_heating_orchestration_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
+
+        async def _stop_orchestration() -> None:
+            await api.async_remove_heating_orchestration_manager(entry.entry_id)
+
+        entry.async_on_unload(_stop_orchestration)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    if orchestration is not None:
+        await orchestration.async_start()
 
     if hass.state == CoreState.running:
         await api.init_vtherm_links(entry.entry_id)
@@ -200,6 +214,10 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(hass)
+
+    # Stop the orchestration observer before its sensor is removed: no late publication.
+    if api and entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG:
+        await api.async_remove_heating_orchestration_manager(entry.entry_id)
 
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         if api:

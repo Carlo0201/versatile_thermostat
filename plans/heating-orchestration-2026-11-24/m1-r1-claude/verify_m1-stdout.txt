@@ -1,0 +1,49 @@
+engine_sha256 edf7e9007ac44166bfc56a3ad8c74dd6b167af6f4ed2760831d865443c27945b
+verify_m1_sha256 71ba7f79cd35506db77b7490150a335ee256f363b5d7a0a4f3682c2279c446f4
+python Python 3.15.2 jinja2 3.1.6
+command: python -I plans/heating-orchestration-2026-11-24/review/verify_m1.py
+{
+  "hashes": 17,
+  "baseline_parity": 27,
+  "random_parity": 5000,
+  "fixture_differences": [
+    "master_unknown"
+  ],
+  "diagnostic_reproductions": {
+    "manual_bypasses_pilot_and_gap": {
+      "action": "heat",
+      "reason": "manual",
+      "statuses": {
+        "master": "pass",
+        "inputs": "pass",
+        "valve_count": "pass",
+        "thermal_gap": "na",
+        "pilot": "na",
+        "single_room_pilot": "na",
+        "manual_request": "pass",
+        "path": "pass",
+        "stability": "na",
+        "cooldown": "na",
+        "consent": "na"
+      }
+    },
+    "maintenance_ignores_pilot": {
+      "action": "none",
+      "reason": "maintain",
+      "statuses": {
+        "master": "pass",
+        "inputs": "pass",
+        "valve_count": "pass",
+        "thermal_gap": "na",
+        "pilot": "na",
+        "single_room_pilot": "na",
+        "manual_request": "na",
+        "path": "na",
+        "stability": "na",
+        "cooldown": "na",
+        "consent": "na"
+      }
+    }
+  }
+}
+exit=0

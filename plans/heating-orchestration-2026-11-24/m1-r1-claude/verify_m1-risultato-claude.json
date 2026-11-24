@@ -1,0 +1,223 @@
+{
+  "baseline_files_hash_verified": 17,
+  "cases_matching_current_jinja": 27,
+  "random_cases_matching_current_jinja": 5000,
+  "seed": 104729,
+  "saved_fixture_differences": [
+    {
+      "name": "master_unknown",
+      "saved": {
+        "action": "none",
+        "reason": "master_unavailable",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "current_template_and_python": {
+        "action": "none",
+        "reason": "master_unavailable",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      }
+    }
+  ],
+  "diagnostic_reproductions": {
+    "manual_bypasses_pilot_and_gap": {
+      "action": "heat",
+      "reason": "manual",
+      "conditions": [
+        {
+          "id": "master",
+          "status": "pass",
+          "reason_code": null,
+          "actual": "off",
+          "expected": "off|heat",
+          "deadline": null
+        },
+        {
+          "id": "inputs",
+          "status": "pass",
+          "reason_code": null,
+          "actual": true,
+          "expected": true,
+          "deadline": null
+        },
+        {
+          "id": "valve_count",
+          "status": "pass",
+          "reason_code": null,
+          "actual": 1,
+          "expected": ">=1",
+          "deadline": null
+        },
+        {
+          "id": "thermal_gap",
+          "status": "na",
+          "reason_code": null,
+          "actual": 0.1,
+          "expected": ">=0.3",
+          "deadline": null
+        },
+        {
+          "id": "pilot",
+          "status": "na",
+          "reason_code": null,
+          "actual": "on",
+          "expected": "off|on",
+          "deadline": null
+        },
+        {
+          "id": "single_room_pilot",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": true,
+          "deadline": null
+        },
+        {
+          "id": "manual_request",
+          "status": "pass",
+          "reason_code": "manual",
+          "actual": "on",
+          "expected": "on",
+          "deadline": null
+        },
+        {
+          "id": "path",
+          "status": "pass",
+          "reason_code": "manual",
+          "actual": "manual",
+          "expected": "manual|normal|single",
+          "deadline": null
+        },
+        {
+          "id": "stability",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": null,
+          "deadline": null
+        },
+        {
+          "id": "cooldown",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": ">=600.0",
+          "deadline": null
+        },
+        {
+          "id": "consent",
+          "status": "na",
+          "reason_code": null,
+          "actual": false,
+          "expected": true,
+          "deadline": null
+        }
+      ]
+    },
+    "maintenance_ignores_pilot": {
+      "action": "none",
+      "reason": "maintain",
+      "conditions": [
+        {
+          "id": "master",
+          "status": "pass",
+          "reason_code": null,
+          "actual": "heat",
+          "expected": "off|heat",
+          "deadline": null
+        },
+        {
+          "id": "inputs",
+          "status": "pass",
+          "reason_code": null,
+          "actual": true,
+          "expected": true,
+          "deadline": null
+        },
+        {
+          "id": "valve_count",
+          "status": "pass",
+          "reason_code": null,
+          "actual": 1,
+          "expected": ">=1",
+          "deadline": null
+        },
+        {
+          "id": "thermal_gap",
+          "status": "na",
+          "reason_code": null,
+          "actual": 0.1,
+          "expected": ">=0.3",
+          "deadline": null
+        },
+        {
+          "id": "pilot",
+          "status": "na",
+          "reason_code": null,
+          "actual": "on",
+          "expected": "off|on",
+          "deadline": null
+        },
+        {
+          "id": "single_room_pilot",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": true,
+          "deadline": null
+        },
+        {
+          "id": "manual_request",
+          "status": "na",
+          "reason_code": null,
+          "actual": "off",
+          "expected": "on",
+          "deadline": null
+        },
+        {
+          "id": "path",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": "manual|normal|single",
+          "deadline": null
+        },
+        {
+          "id": "stability",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": null,
+          "deadline": null
+        },
+        {
+          "id": "cooldown",
+          "status": "na",
+          "reason_code": null,
+          "actual": null,
+          "expected": ">=600.0",
+          "deadline": null
+        },
+        {
+          "id": "consent",
+          "status": "na",
+          "reason_code": null,
+          "actual": false,
+          "expected": true,
+          "deadline": null
+        }
+      ]
+    }
+  }
+}
