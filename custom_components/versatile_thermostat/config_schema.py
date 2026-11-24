@@ -37,6 +37,7 @@ from .heating_boiler_collector import (
     ACTIVE_COUNT_DOMAINS,
     BINARY_INPUT_DOMAINS,
     CENTRAL_MODE_DOMAINS,
+    EXTERNAL_OWNER_DOMAINS,
     LEGACY_CYCLE_DOMAINS,
     MASTER_DOMAINS,
     ROOM_DOMAINS,
@@ -253,20 +254,45 @@ def _ho_entity_selector(domains, multiple: bool = False) -> selector.EntitySelec
     return selector.EntitySelector(selector.EntitySelectorConfig(domain=list(domains), multiple=multiple))
 
 
-# Boiler orchestration (M2-A): central entities. ``control`` is not selectable.
-STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA = vol.Schema(
+def build_central_heating_orchestration_schema(allow_control: bool) -> vol.Schema:
+    """Central entities of the boiler orchestration.
+
+    ``control`` is offered only by the options flow of an existing central
+    configuration (``allow_control``): it needs the confirmation step.
+    """
+    modes = HO_OPTIONS_MODES if allow_control else HO_SELECTABLE_MODES
+    return vol.Schema(
+        {
+            vol.Required(CONF_HO_MODE, default=HO_MODE_DISABLED): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(modes), translation_key="heating_orchestration_mode", mode=selector.SelectSelectorMode.LIST)
+            ),
+            **_HO_CENTRAL_FIELDS,
+            vol.Optional(CONF_HO_EXTERNAL_OWNERS): _ho_entity_selector(EXTERNAL_OWNER_DOMAINS, multiple=True),
+        }
+    )
+
+
+# Boiler orchestration: the central entity fields shared by the creation and options flows.
+_HO_CENTRAL_FIELDS = {
+    vol.Optional(CONF_HO_MASTER): _ho_entity_selector(MASTER_DOMAINS),
+    vol.Optional(CONF_HO_CENTRAL_MODE): _ho_entity_selector(CENTRAL_MODE_DOMAINS),
+    vol.Optional(CONF_HO_ACTIVE_COUNT): _ho_entity_selector(ACTIVE_COUNT_DOMAINS),
+    vol.Optional(CONF_HO_MANUAL): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_PILOT_FILTER): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_PILOT_READY): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_CONSENTS): _ho_entity_selector(BINARY_INPUT_DOMAINS, multiple=True),
+    vol.Optional(CONF_HO_LEGACY_CYCLE): _ho_entity_selector(LEGACY_CYCLE_DOMAINS),
+}
+
+# Creation flow of a new central configuration: observe at most.
+STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA = build_central_heating_orchestration_schema(False)
+# Options flow of an existing central configuration: ``control`` selectable (with confirmation).
+STEP_CENTRAL_HEATING_ORCHESTRATION_OPTIONS_SCHEMA = build_central_heating_orchestration_schema(True)
+
+# Boiler orchestration (M2-B): explicit confirmation of the ``control`` mode.
+STEP_HEATING_ORCHESTRATION_CONTROL_CONFIRM_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HO_MODE, default=HO_MODE_DISABLED): selector.SelectSelector(
-            selector.SelectSelectorConfig(options=list(HO_SELECTABLE_MODES), translation_key="heating_orchestration_mode", mode=selector.SelectSelectorMode.LIST)
-        ),
-        vol.Optional(CONF_HO_MASTER): _ho_entity_selector(MASTER_DOMAINS),
-        vol.Optional(CONF_HO_CENTRAL_MODE): _ho_entity_selector(CENTRAL_MODE_DOMAINS),
-        vol.Optional(CONF_HO_ACTIVE_COUNT): _ho_entity_selector(ACTIVE_COUNT_DOMAINS),
-        vol.Optional(CONF_HO_MANUAL): _ho_entity_selector(BINARY_INPUT_DOMAINS),
-        vol.Optional(CONF_HO_PILOT_FILTER): _ho_entity_selector(BINARY_INPUT_DOMAINS),
-        vol.Optional(CONF_HO_PILOT_READY): _ho_entity_selector(BINARY_INPUT_DOMAINS),
-        vol.Optional(CONF_HO_CONSENTS): _ho_entity_selector(BINARY_INPUT_DOMAINS, multiple=True),
-        vol.Optional(CONF_HO_LEGACY_CYCLE): _ho_entity_selector(LEGACY_CYCLE_DOMAINS),
+        vol.Required(CONF_HO_CONTROL_CONFIRM, default=False): selector.BooleanSelector(),
     }
 )
 

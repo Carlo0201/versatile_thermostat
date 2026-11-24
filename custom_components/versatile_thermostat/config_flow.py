@@ -62,6 +62,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
     VERSION = CONFIG_VERSION
     MINOR_VERSION = CONFIG_MINOR_VERSION
 
+    # The ``control`` mode of the boiler orchestration is offered only by the options
+    # flow of an existing central configuration, behind an explicit confirmation step.
+    _ho_allow_control = False
+
     def __init__(self, infos) -> None:
         super().__init__()
         _LOGGER.debug("CTOR BaseConfigFlow infos: %s", infos)
@@ -759,8 +763,8 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return await self.generic_step("central_boiler", schema, user_input, next_step)
 
     # ----------------------------------------------------------------------
-    # Boiler orchestration (M2-A, observe only). The section is stored nested
-    # in the entry data, so the generic flat merge is not used.
+    # Boiler orchestration (M2-A observe, M2-B control). The section is stored
+    # nested in the entry data, so the generic flat merge is not used.
     # ----------------------------------------------------------------------
 
     def _ho_section(self) -> dict:
@@ -774,7 +778,8 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
             config = parse_orchestration_config(section)
         except OrchestrationConfigError as err:
             return {(err.key if err.key in field_keys else "base"): f"ho_{err.code}"}
-        for entity_id in config.configured_entity_ids() + ((config.legacy_cycle_entity_id,) if config.legacy_cycle_entity_id else ()):
+        legacy = (config.legacy_cycle_entity_id,) if config.legacy_cycle_entity_id else ()
+        for entity_id in config.configured_entity_ids() + legacy + config.external_owner_entity_ids:
             if self.hass.states.get(entity_id) is None:
                 _LOGGER.error("Entity id %s doesn't have any state. We cannot use it in the boiler orchestration", entity_id)
                 return {"base": "unknown_entity"}
@@ -786,22 +791,30 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return {**self._placeholders, "rooms": text or "-"}
 
     async def async_step_heating_orchestration(self, user_input: dict | None = None) -> FlowResult:
-        """Central entities of the boiler orchestration (mode disabled or observe)."""
+        """Central entities of the boiler orchestration (disabled, observe, and control from the options flow)."""
         _LOGGER.debug("Into ConfigFlow.async_step_heating_orchestration user_input=%s", user_input)
-        schema = STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA
+        schema = STEP_CENTRAL_HEATING_ORCHESTRATION_OPTIONS_SCHEMA if self._ho_allow_control else STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA
         section = self._ho_section()
         errors: dict = {}
         defaults = dict(section)
         if user_input is not None:
             defaults.update(user_input)
+            # The confirmation is never carried over: any change asks for it again.
             candidate = {key: value for key, value in user_input.items() if value not in (None, "", [])}
             if section.get(CONF_HO_ROOMS):
                 candidate[CONF_HO_ROOMS] = section[CONF_HO_ROOMS]
-            if candidate.get(CONF_HO_MODE) != HO_MODE_DISABLED:
-                errors = self._ho_check(candidate, {key.schema for key in schema.schema})
+            mode = candidate.get(CONF_HO_MODE)
+            if mode == HO_MODE_CONTROL and not self._ho_allow_control:
+                errors = {CONF_HO_MODE: "ho_unsupported_mode"}
+            elif mode != HO_MODE_DISABLED:
+                # Validate as if confirmed: the confirmation is the next step.
+                checked = {**candidate, CONF_HO_CONTROL_CONFIRMED: True} if mode == HO_MODE_CONTROL else candidate
+                errors = self._ho_check(checked, {key.schema for key in schema.schema})
             if not errors:
                 self._infos[CONF_HEATING_ORCHESTRATION] = candidate
-                if candidate.get(CONF_HO_MODE) == HO_MODE_OBSERVE:
+                if mode == HO_MODE_CONTROL:
+                    return await self.async_step_heating_orchestration_control_confirm()
+                if mode == HO_MODE_OBSERVE:
                     return await self.async_step_heating_orchestration_rooms()
                 return await self.async_step_menu()
         return self.async_show_form(
@@ -809,6 +822,42 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
             data_schema=add_suggested_values_to_schema(schema, defaults),
             errors=errors,
             description_placeholders=self._placeholders,
+        )
+
+    def _ho_control_placeholders(self) -> dict:
+        """Current state of the external controllers and of the master, for the confirmation text."""
+        section = self._ho_section()
+        owners = []
+        for entity_id in section.get(CONF_HO_EXTERNAL_OWNERS) or []:
+            state = self.hass.states.get(entity_id)
+            owners.append(f"{entity_id} ({state.state if state is not None else 'missing'})")
+        return {**self._placeholders, "owners": ", ".join(owners) or "-", "master": str(section.get(CONF_HO_MASTER) or "-")}
+
+    async def async_step_heating_orchestration_control_confirm(self, user_input: dict | None = None) -> FlowResult:
+        """Explicit confirmation that lets the integration command the boiler master.
+
+        Nothing is stored as ``control`` without it. The external controllers may
+        still be active when the mode is confirmed: until all of them are off
+        the controller stays blocked and sends nothing.
+        """
+        if not self._ho_allow_control:
+            return await self.async_step_menu()
+        errors: dict = {}
+        if user_input is not None:
+            if user_input.get(CONF_HO_CONTROL_CONFIRM) is True:
+                section = self._ho_section()
+                section[CONF_HO_CONTROL_CONFIRMED] = True
+                errors = self._ho_check(section, set())
+                if not errors:
+                    self._infos[CONF_HEATING_ORCHESTRATION] = section
+                    return await self.async_step_heating_orchestration_rooms()
+            else:
+                errors = {CONF_HO_CONTROL_CONFIRM: "ho_control_not_confirmed"}
+        return self.async_show_form(
+            step_id="heating_orchestration_control_confirm",
+            data_schema=STEP_HEATING_ORCHESTRATION_CONTROL_CONFIRM_SCHEMA,
+            errors=errors,
+            description_placeholders=self._ho_control_placeholders(),
         )
 
     async def async_step_heating_orchestration_rooms(self, user_input: dict | None = None) -> FlowResult:
@@ -1438,6 +1487,12 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if not self._infos[CONF_USE_AUTO_START_STOP_FEATURE]:
             self._infos[CONF_AUTO_START_STOP_LEVEL] = AUTO_START_STOP_LEVEL_NONE
 
+        # Never persist a ``control`` mode that was not explicitly confirmed.
+        ho_section = self._infos.get(CONF_HEATING_ORCHESTRATION)
+        if isinstance(ho_section, Mapping) and ho_section.get(CONF_HO_MODE) == HO_MODE_CONTROL and ho_section.get(CONF_HO_CONTROL_CONFIRMED) is not True:
+            _LOGGER.warning("The boiler control mode was not confirmed: the boiler orchestration is saved in observe mode")
+            self._infos[CONF_HEATING_ORCHESTRATION] = {**ho_section, CONF_HO_MODE: HO_MODE_OBSERVE}
+
         # Removes temporary value
         if COMES_FROM in self._infos:
             del self._infos[COMES_FROM]
@@ -1473,6 +1528,8 @@ class VersatileThermostatOptionsFlowHandler(
     VersatileThermostatBaseConfigFlow, OptionsFlow
 ):
     """Handle options flow for Versatile Thermostat integration."""
+
+    _ho_allow_control = True
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""

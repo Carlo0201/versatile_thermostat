@@ -88,6 +88,62 @@ Il contratto definitivo verrà fissato all'integrazione runtime M3/M4.
 
 Un solo autore per ciascun file. I file condivisi del fork (`__init__.py`, `vtherm_central_api.py`, `config_flow.py`, `config_schema.py`, `const.py`, `sensor.py`, `translations/*`, `tests/conftest.py`, `tests/commons.py`) appartengono al filone A. Il filone B crea solo moduli e test nuovi. Il filone C lavora solo nell'SDK Oikos. `heating_boiler_policy.py` è approvato e congelato: nessun worker lo modifica senza decisione del coordinatore.
 
+## 6. Modalità separate caldaia / PDC (v1.1)
+
+- La caldaia usa `mode` (`disabled` / `observe` / `control`), le PDC usano `pdc_mode`, sempre nella sezione `heating_orchestration` della centrale.
+- Ogni modalità è indipendente. `control` si attiva solo dall'options flow, con un passo di conferma e un `external_owner_entity_ids` proprio (caldaia, e per ogni stanza PDC).
+- Il fork non accende né spegne mai un controller esterno. Finché un proprietario esterno configurato non è esattamente `off`, l'attuatore resta in osservazione con `control_status = blocked_external_owner`.
+
+## 7. Sospensione generale «Spegni tutto il riscaldamento» (v1.1)
+
+Decisioni di Carlo in `IDEE-IMPLEMENTAZIONE.md` §1. Qui si definisce il contratto dell'integrazione; la card non fa parte di questo incarico.
+
+### Comandi
+
+- Servizi `versatile_thermostat.suspend_heating` e `versatile_thermostat.resume_heating`, rivolti alla configurazione centrale. Sono pensati per la card Oikos e la richiesta di conferma è a carico della card.
+- **Disponibilità**: solo se la caldaia è in `control`, **tutte** le stanze PDC configurate sono in `pdc_mode = control` e l'interblocco di proprietà è soddisfatto per ogni attuatore. Altrimenti il servizio rifiuta con l'errore `suspension_unavailable` e indica gli attuatori non controllati. In observe, o con controllo parziale, il comando non è operativo e non tocca nulla.
+
+### Effetto
+
+1. Si persiste subito `suspended = true` nello `Store` della centrale, con `requested_at`, `requested_by` (`user_id` HA se presente, altrimenti `unknown`) e `origin`. La sospensione resta attiva dopo riavvio e reload, senza scadenza.
+2. Si bloccano le nuove accensioni:
+   - la decisione caldaia diventa `off`/`none` con motivo `suspended`;
+   - le PDC non avviano;
+   - per ogni stanza configurata il radiatore viene sospeso tramite l'inibizione VTherm esistente. Se l'inibizione è già presente ed è di altri o di proprietà ignota, non viene acquisita: si registra `owned = false` e alla ripresa non viene rilasciata.
+   Il gate dell'inibizione blocca i comandi di scheduler e manuali verso le valvole.
+3. Si annullano gli override temporanei di accensione **posseduti dal fork**: override AC/PDC di M5 e transazioni PDC in corso, con la sequenza di ritorno sicura (split OFF confermato prima di qualunque rilascio). Gli override esterni, come le riprese di programma Oikos, sono **fuori copertura** e vanno documentati come tali.
+4. Spegnimento:
+   - caldaia `off`;
+   - PDC OFF con conferma, rispettando l'ordine: prima PDC ferme, poi master;
+   - conferme e ritentativi come in M2-B, con al massimo 4 invii per dispositivo.
+5. Stato per dispositivo: `pending`, `confirmed`, `unreachable` (unknown, unavailable o entità mancante: **mai OFF**), `external_activation` (riacceso da telecomando, app o servizio esterno durante la sospensione).
+   - Per `external_activation` si rimanda OFF con le stesse regole di tentativi, senza un ciclo infinito; dopo il limite resta `external_activation`.
+   - I telecomandi fisici e le app del produttore non sono bloccabili: si possono solo rilevare e contrastare in modo limitato.
+6. Stato generale (sensore `<central_entry_id>_heating_suspension`): `inactive` | `suspending` | `suspended` (tutto confermato) | `suspended_partial` (blocco attivo, ma qualche dispositivo non confermato o non raggiungibile) | `unavailable` (comando non disponibile, con il motivo).
+7. La perdita di proprietà durante la sospensione (per esempio un controller esterno riattivato) produce `suspended_partial` con il motivo. Non ci sono comandi concorrenti né disattivazioni automatiche.
+
+### Ripresa
+
+`resume_heating`:
+- rilascia **solo** le inibizioni possedute dalla sospensione;
+- azzera lo stato `suspended`;
+- rivaluta subito ingressi, programmi e condizioni correnti, con pause e stabilità normali;
+- non ripristina gli override annullati né accende in blocco ciò che era acceso prima.
+
+## 8. Storico e attività per le popup Andamento, Condizioni e Attività (v1.1)
+
+Obiettivo: poter analizzare a posteriori una decisione con le condizioni **di quel momento**, senza ricostruirle dallo stato attuale.
+
+- **Andamento** (Recorder, stati numerici). Sensori diagnostici per stanza con stato breve, registrati normalmente: fonte proposta (`radiator` / `pdc` / `none`), motivo, gap arrotondato. Gli attributi voluminosi stanno in `_unrecorded_attributes`.
+- **Condizioni** (stato corrente). Attributi `conditions` dei sensori, non registrati dal Recorder: servono solo alla UI dal vivo.
+- **Attività** (storico puntuale). Un'entità `event` per la centrale (`<central_entry_id>_heating_activity`) emette un evento solo alle **transizioni**: proposta che cambia, comando inviato, conferma o fallimento, inizio o fine di transazione PDC, override, sospensione o ripresa, perdita di proprietà.
+  - Contenuto: `event_type`, `actuator`, `action`, `reason`, `author` (`user` con `user_id` solo se HA lo fornisce; altrimenti `automation` / `controller` / `unknown`), `mode`, `owner`, `generation`, e un **estratto compatto delle condizioni** di quel momento (id → stato e motivo, con valori numerici arrotondati).
+  - Limiti: al massimo 4 KB per evento e nessun evento ad ogni tick.
+  - Le entità `event` sono registrate dal Recorder: lo storico segue `purge_keep_days` (default 10 giorni). La conservazione è quindi limitata e configurabile da Carlo, senza crescita illimitata.
+- **Logbook**: una voce per comando, conferma o fallimento, con prefisso `OIKOS_HEATING_V1|`, compatibile con il registro attuale.
+- **Limiti dichiarati**: SmartThings non identifica chi usa il telecomando, quindi l'autore resta `unknown`. Il modo HEAT dello split non dimostra che il compressore stia funzionando. Le condizioni anteriori all'installazione non esistono.
+
 ## Registro modifiche
 
 - v1 (24/11/2026): prima stesura del coordinatore.
+- v1.1 (24/11/2026 sera): modalità separate per caldaia e PDC (§6), sospensione generale (§7), storico e attività (§8). Le aggiunte sono compatibili con v1. Gli attributi di controllo della caldaia sono definiti in `M2-B-SPEC.md`.

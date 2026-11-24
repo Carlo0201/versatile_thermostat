@@ -287,7 +287,7 @@
             },
             "heating_orchestration": {
                 "title": "Orchestrazione caldaia",
-                "description": "Osservazione della decisione della caldaia (nessun comando viene inviato). Scegli `observe` per pubblicare un'entità diagnostica con l'azione proposta. `control` non è disponibile. Le stanze si aggiungono nel passo successivo.",
+                "description": "Osservazione della decisione della caldaia. Scegliere `observe` per pubblicare un'entità diagnostica con l'azione proposta (nessun comando viene inviato). La modalità `control` si abilita in seguito dalle opzioni della configurazione centrale. Le stanze si aggiungono nel passo successivo.",
                 "data": {
                     "mode": "Modalità",
                     "master_entity_id": "Master caldaia (climate)",
@@ -297,10 +297,11 @@
                     "pilot_filter_entity_id": "Filtro pilota",
                     "pilot_ready_entity_id": "Pilota pronto",
                     "consent_entity_ids": "Consensi nativi (tutti devono essere on)",
-                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)"
+                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)",
+                    "external_owner_entity_ids": "Controller esterni che devono essere spenti (control)"
                 },
                 "data_description": {
-                    "mode": "disabled: non osserva nulla. observe: valuta e pubblica soltanto, non comanda mai.",
+                    "mode": "disabled: nulla viene osservato. observe: valuta e pubblica, non comanda mai. control: comanda il master della caldaia (solo dalle opzioni, con conferma).",
                     "master_entity_id": "Entità climate del master della caldaia, solo letta",
                     "central_mode_entity_id": "Select del modo centrale (Auto / Heat only consentono il riscaldamento)",
                     "active_count_entity_id": "Sensore con il conteggio come stato e l'attributo active_device_ids con le valvole attive",
@@ -308,7 +309,18 @@
                     "pilot_filter_entity_id": "Entità on/off facoltativa del filtro pilota",
                     "pilot_ready_entity_id": "Entità on/off facoltativa: pilota pronto",
                     "consent_entity_ids": "Almeno un'entità on/off. Il consenso è vero solo quando tutte sono on",
-                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto"
+                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto",
+                    "external_owner_entity_ids": "Automazioni (o helper) che oggi comandano il master della caldaia, per esempio il controllo stabile e quelle precedenti. In control l'integrazione non invia nulla finché tutti non sono esattamente off e non li accende né spegne mai. Obbligatori per control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Conferma il controllo della caldaia",
+                "description": "Questa integrazione comanderà il master della caldaia {master} (heat / off).\n\n1. Controller esterni che devono essere spenti, mai commutati da questa integrazione: {owners}. Finché non sono tutti off non viene inviato nulla.\n2. Dopo ogni avvio o ricarica osserva per almeno 30 s prima di inviare qualunque comando.\n3. Un comando è confermato solo quando il master riporta il modo comandato: al massimo 4 invii, con ritentativi dopo 60, 120 e 300 s.\n4. Se un controller esterno viene riacceso, ogni comando pendente viene annullato e non viene inviato nulla.\n\nPer smettere di controllare, scegliere observe o disabled nel passo precedente.",
+                "data": {
+                    "confirm_control": "Confermo: questa integrazione può comandare il master della caldaia"
+                },
+                "data_description": {
+                    "confirm_control": "Necessaria per abilitare la modalità control"
                 }
             },
             "heating_orchestration_rooms": {
@@ -467,8 +479,8 @@
             "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel README.",
             "ho_invalid_section": "La sezione di configurazione non è valida",
             "ho_unsupported_mode": "Modalità non supportata",
-            "ho_control_not_available": "La modalità control non è disponibile",
-            "ho_required": "Campo obbligatorio in modalità observe",
+            "ho_control_not_confirmed": "Confermare l'attivazione, oppure tornare indietro e scegliere observe",
+            "ho_required": "Il campo è obbligatorio in modalità observe e control",
             "ho_invalid_entity": "Identificativo entità non valido",
             "ho_invalid_domain": "L'entità ha un dominio non supportato per questo campo",
             "ho_duplicate_binding": "La stessa entità è usata in due associazioni diverse",
@@ -477,6 +489,7 @@
             "ho_pdc_incomplete": "La PDC richiede sia lo split sia la sessione",
             "ho_too_many_rooms": "Troppe stanze",
             "ho_too_many_consents": "Troppe entità di consenso",
+            "ho_too_many_external_owners": "Troppi controller esterni",
             "ho_invalid_room": "Stanza non valida"
         },
         "abort": {
@@ -767,7 +780,7 @@
             },
             "heating_orchestration": {
                 "title": "Orchestrazione caldaia - {name}",
-                "description": "Osservazione della decisione della caldaia (nessun comando viene inviato). Scegli `observe` per pubblicare un'entità diagnostica con l'azione proposta. `control` non è disponibile. Le stanze si aggiungono nel passo successivo.",
+                "description": "Orchestrazione della caldaia. `observe` valuta e pubblica soltanto. `control` permette a questa integrazione di portare il master della caldaia tra heat e off; richiede i controller esterni indicati sotto e chiede una conferma nel passo successivo. Le stanze si aggiungono dopo.",
                 "data": {
                     "mode": "Modalità",
                     "master_entity_id": "Master caldaia (climate)",
@@ -777,10 +790,11 @@
                     "pilot_filter_entity_id": "Filtro pilota",
                     "pilot_ready_entity_id": "Pilota pronto",
                     "consent_entity_ids": "Consensi nativi (tutti devono essere on)",
-                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)"
+                    "legacy_cycle_entity_id": "Helper ciclo legacy (letto una sola volta come seme)",
+                    "external_owner_entity_ids": "Controller esterni che devono essere spenti (control)"
                 },
                 "data_description": {
-                    "mode": "disabled: non osserva nulla. observe: valuta e pubblica soltanto, non comanda mai.",
+                    "mode": "disabled: nulla viene osservato. observe: valuta e pubblica, non comanda mai. control: comanda il master della caldaia (solo dalle opzioni, con conferma).",
                     "master_entity_id": "Entità climate del master della caldaia, solo letta",
                     "central_mode_entity_id": "Select del modo centrale (Auto / Heat only consentono il riscaldamento)",
                     "active_count_entity_id": "Sensore con il conteggio come stato e l'attributo active_device_ids con le valvole attive",
@@ -788,7 +802,18 @@
                     "pilot_filter_entity_id": "Entità on/off facoltativa del filtro pilota",
                     "pilot_ready_entity_id": "Entità on/off facoltativa: pilota pronto",
                     "consent_entity_ids": "Almeno un'entità on/off. Il consenso è vero solo quando tutte sono on",
-                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto"
+                    "legacy_cycle_entity_id": "input_text facoltativo con il JSON del ciclo legacy: viene letto una sola volta come seme dell'osservatore e non viene mai scritto",
+                    "external_owner_entity_ids": "Automazioni (o helper) che oggi comandano il master della caldaia, per esempio il controllo stabile e quelle precedenti. In control l'integrazione non invia nulla finché tutti non sono esattamente off e non li accende né spegne mai. Obbligatori per control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Conferma il controllo della caldaia - {name}",
+                "description": "Questa integrazione comanderà il master della caldaia {master} (heat / off).\n\n1. Controller esterni che devono essere spenti, mai commutati da questa integrazione: {owners}. Finché non sono tutti off non viene inviato nulla.\n2. Dopo ogni avvio o ricarica osserva per almeno 30 s prima di inviare qualunque comando.\n3. Un comando è confermato solo quando il master riporta il modo comandato: al massimo 4 invii, con ritentativi dopo 60, 120 e 300 s.\n4. Se un controller esterno viene riacceso, ogni comando pendente viene annullato e non viene inviato nulla.\n\nPer smettere di controllare, scegliere observe o disabled nel passo precedente.",
+                "data": {
+                    "confirm_control": "Confermo: questa integrazione può comandare il master della caldaia"
+                },
+                "data_description": {
+                    "confirm_control": "Necessaria per abilitare la modalità control"
                 }
             },
             "heating_orchestration_rooms": {
@@ -947,8 +972,8 @@
             "vswitch_configuration_incorrect": "La configurazione della personalizzazione dei comandi non è corretta. È obbligatoria per i sottostanti non switch e il formato deve essere ‘nome_servizio[/attributo:valore]’. Maggiori informazioni nel file README.",
             "ho_invalid_section": "La sezione di configurazione non è valida",
             "ho_unsupported_mode": "Modalità non supportata",
-            "ho_control_not_available": "La modalità control non è disponibile",
-            "ho_required": "Campo obbligatorio in modalità observe",
+            "ho_control_not_confirmed": "Confermare l'attivazione, oppure tornare indietro e scegliere observe",
+            "ho_required": "Il campo è obbligatorio in modalità observe e control",
             "ho_invalid_entity": "Identificativo entità non valido",
             "ho_invalid_domain": "L'entità ha un dominio non supportato per questo campo",
             "ho_duplicate_binding": "La stessa entità è usata in due associazioni diverse",
@@ -957,6 +982,7 @@
             "ho_pdc_incomplete": "La PDC richiede sia lo split sia la sessione",
             "ho_too_many_rooms": "Troppe stanze",
             "ho_too_many_consents": "Troppe entità di consenso",
+            "ho_too_many_external_owners": "Troppi controller esterni",
             "ho_invalid_room": "Stanza non valida"
         },
         "abort": {
@@ -1045,7 +1071,8 @@
         "heating_orchestration_mode": {
             "options": {
                 "disabled": "Disattivata",
-                "observe": "Solo osservazione (nessun comando)"
+                "observe": "Solo osservazione (nessun comando)",
+                "control": "Controllo (comanda il master della caldaia)"
             }
         }
     },

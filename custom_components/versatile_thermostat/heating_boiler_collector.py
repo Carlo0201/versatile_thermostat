@@ -50,6 +50,8 @@ from datetime import datetime, timezone, tzinfo
 from typing import Any, Final
 
 SCHEMA_VERSION: Final = 1
+# Compatible additions of M2-B (control fields): schema 1.1.
+SCHEMA_MINOR: Final = 1
 
 # Configuration section stored in the central configuration entry.
 CONF_SECTION: Final = "heating_orchestration"
@@ -62,6 +64,8 @@ KEY_PILOT_FILTER: Final = "pilot_filter_entity_id"
 KEY_PILOT_READY: Final = "pilot_ready_entity_id"
 KEY_CONSENTS: Final = "consent_entity_ids"
 KEY_LEGACY_CYCLE: Final = "legacy_cycle_entity_id"
+KEY_EXTERNAL_OWNERS: Final = "external_owner_entity_ids"
+KEY_CONTROL_CONFIRMED: Final = "control_confirmed"
 KEY_ROOMS: Final = "rooms"
 KEY_ROOM_KEY: Final = "room_key"
 KEY_ROOM_CLIMATE: Final = "climate_entity_id"
@@ -84,8 +88,11 @@ MODE_DISABLED: Final = "disabled"
 MODE_OBSERVE: Final = "observe"
 MODE_CONTROL: Final = "control"
 KNOWN_MODES: Final = (MODE_DISABLED, MODE_OBSERVE, MODE_CONTROL)
-# ``control`` stays not selectable until M2-B is complete and reviewed.
-SELECTABLE_MODES: Final = (MODE_DISABLED, MODE_OBSERVE)
+# Modes accepted by the parser. ``control`` also needs the external owners and an
+# explicit confirmation stored by the options flow (``control_confirmed``).
+SELECTABLE_MODES: Final = (MODE_DISABLED, MODE_OBSERVE, MODE_CONTROL)
+# Modes offered when a new central configuration is created (never ``control``).
+CONFIG_FLOW_MODES: Final = (MODE_DISABLED, MODE_OBSERVE)
 
 # Expected domains of the configured bindings.
 MASTER_DOMAINS: Final = ("climate",)
@@ -93,12 +100,14 @@ CENTRAL_MODE_DOMAINS: Final = ("select", "input_select")
 ACTIVE_COUNT_DOMAINS: Final = ("sensor",)
 BINARY_INPUT_DOMAINS: Final = ("binary_sensor", "input_boolean", "switch")
 LEGACY_CYCLE_DOMAINS: Final = ("input_text",)
+EXTERNAL_OWNER_DOMAINS: Final = ("automation", "input_boolean", "switch")
 ROOM_DOMAINS: Final = ("climate",)
 SPLIT_DOMAINS: Final = ("climate",)
 SESSION_DOMAINS: Final = BINARY_INPUT_DOMAINS
 
 MAX_ROOMS: Final = 32
 MAX_CONSENTS: Final = 8
+MAX_EXTERNAL_OWNERS: Final = 16
 ROOM_KEY_PATTERN: Final = re.compile(r"^[a-z0-9_]{1,64}$")
 ENTITY_ID_PATTERN: Final = re.compile(r"^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$")
 
@@ -163,7 +172,7 @@ EXCLUSION_CODES: Final = (
 # Configuration error codes (also used as config flow error keys, with prefix).
 CONFIG_ERROR_INVALID_SECTION: Final = "invalid_section"
 CONFIG_ERROR_UNSUPPORTED_MODE: Final = "unsupported_mode"
-CONFIG_ERROR_CONTROL_NOT_AVAILABLE: Final = "control_not_available"
+CONFIG_ERROR_CONTROL_NOT_CONFIRMED: Final = "control_not_confirmed"
 CONFIG_ERROR_REQUIRED: Final = "required"
 CONFIG_ERROR_INVALID_ENTITY: Final = "invalid_entity"
 CONFIG_ERROR_INVALID_DOMAIN: Final = "invalid_domain"
@@ -173,6 +182,7 @@ CONFIG_ERROR_DUPLICATE_ROOM: Final = "duplicate_room"
 CONFIG_ERROR_PDC_INCOMPLETE: Final = "pdc_incomplete"
 CONFIG_ERROR_TOO_MANY_ROOMS: Final = "too_many_rooms"
 CONFIG_ERROR_TOO_MANY_CONSENTS: Final = "too_many_consents"
+CONFIG_ERROR_TOO_MANY_EXTERNAL_OWNERS: Final = "too_many_external_owners"
 CONFIG_ERROR_INVALID_ROOM: Final = "invalid_room"
 
 
@@ -219,6 +229,8 @@ class OrchestrationConfig:
     pilot_ready_entity_id: str | None = None
     consent_entity_ids: tuple[str, ...] = ()
     legacy_cycle_entity_id: str | None = None
+    external_owner_entity_ids: tuple[str, ...] = ()
+    control_confirmed: bool = False
     rooms: tuple[RoomBinding, ...] = ()
 
     def required_entity_ids(self) -> tuple[str, ...]:
@@ -335,8 +347,6 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
         raise OrchestrationConfigError(CONFIG_ERROR_UNSUPPORTED_MODE, KEY_MODE)
     if mode == MODE_DISABLED:
         return OrchestrationConfig()
-    if mode not in SELECTABLE_MODES:
-        raise OrchestrationConfigError(CONFIG_ERROR_CONTROL_NOT_AVAILABLE, KEY_MODE)
 
     master = _check_entity_id(section.get(KEY_MASTER), KEY_MASTER, MASTER_DOMAINS, required=True)
     central = _check_entity_id(section.get(KEY_CENTRAL_MODE), KEY_CENTRAL_MODE, CENTRAL_MODE_DOMAINS, required=True)
@@ -369,6 +379,26 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
         if value is not None
     ]
     central_bindings.extend((KEY_CONSENTS, value) for value in consents)
+
+    # External controllers that must not be active while this one controls. Required
+    # for ``control``; when present in ``observe`` they are validated and only shown.
+    raw_owners = section.get(KEY_EXTERNAL_OWNERS)
+    if isinstance(raw_owners, str):
+        raw_owners = [raw_owners]
+    if raw_owners is None:
+        raw_owners = []
+    if isinstance(raw_owners, (bytes, Mapping)) or not isinstance(raw_owners, Sequence):
+        raise OrchestrationConfigError(CONFIG_ERROR_INVALID_ENTITY, KEY_EXTERNAL_OWNERS)
+    if mode == MODE_CONTROL and len(raw_owners) == 0:
+        raise OrchestrationConfigError(CONFIG_ERROR_REQUIRED, KEY_EXTERNAL_OWNERS)
+    if len(raw_owners) > MAX_EXTERNAL_OWNERS:
+        raise OrchestrationConfigError(CONFIG_ERROR_TOO_MANY_EXTERNAL_OWNERS, KEY_EXTERNAL_OWNERS)
+    owners = tuple(_check_entity_id(value, KEY_EXTERNAL_OWNERS, EXTERNAL_OWNER_DOMAINS, required=True) or "" for value in raw_owners)
+    central_bindings.extend((KEY_EXTERNAL_OWNERS, value) for value in owners)
+
+    confirmed = section.get(KEY_CONTROL_CONFIRMED, False)
+    if mode == MODE_CONTROL and confirmed is not True:
+        raise OrchestrationConfigError(CONFIG_ERROR_CONTROL_NOT_CONFIRMED, KEY_CONTROL_CONFIRMED)
     seen: dict[str, str] = {}
     for key, value in central_bindings:
         if value in seen:
@@ -394,6 +424,8 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
         pilot_ready_entity_id=pilot_ready,
         consent_entity_ids=consents,
         legacy_cycle_entity_id=legacy,
+        external_owner_entity_ids=owners,
+        control_confirmed=confirmed is True,
         rooms=rooms,
     )
 
@@ -834,6 +866,19 @@ CYCLE_ORIGIN_LOCAL_RESTORE: Final = "local_restore"
 CYCLE_ORIGIN_NEW_OBSERVATION: Final = "new_observation"
 CYCLE_ORIGINS: Final = (CYCLE_ORIGIN_LEGACY_SEED, CYCLE_ORIGIN_LOCAL_RESTORE, CYCLE_ORIGIN_NEW_OBSERVATION)
 
+# Control fields of schema 1.1 (observe and disabled keep these values).
+DEFAULT_CONTROL_FIELDS: Final = {
+    "control_status": "inactive",
+    "command_status": None,
+    "commanded_mode": None,
+    "last_command_at": None,
+    "last_confirmation_at": None,
+    "service_completed_at": None,
+    "command_attempts": 0,
+    "command_retry_at": None,
+    "external_owners": [],
+}
+
 STATE_DISABLED: Final = "disabled"
 STATE_STARTING: Final = "starting"
 STATE_ERROR: Final = "error"
@@ -891,12 +936,24 @@ def _truncate_error(value: str | None) -> str | None:
 
 
 def empty_diagnostics(
-    mode: str, *, owner: str | None = None, generation: int = 0, evaluated_at: float | None = None, last_error: str | None = None, cycle_origin: str | None = None
+    mode: str,
+    *,
+    owner: str | None = None,
+    generation: int = 0,
+    evaluated_at: float | None = None,
+    last_error: str | None = None,
+    cycle_origin: str | None = None,
+    control: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Attributes for ``disabled``, ``starting`` and ``error`` states (no decision)."""
+    payload = {
+        **DEFAULT_CONTROL_FIELDS,
+        **(control or {}),
+    }
     return json_safe(
         {
             "schema_version": SCHEMA_VERSION,
+            "schema_minor": SCHEMA_MINOR,
             "mode": mode,
             "owner": owner,
             "evaluated_at": evaluated_at,
@@ -915,9 +972,7 @@ def empty_diagnostics(
             "conditions": [],
             "cycle": {"m": None, "off": None, "r": None, "s": []},
             "cycle_origin": cycle_origin,
-            "commanded_mode": None,
-            "last_command_at": None,
-            "last_confirmation_at": None,
+            **payload,
             "last_error": _truncate_error(last_error),
         }
     )
@@ -932,18 +987,25 @@ def build_boiler_diagnostics(
     generation: int,
     cycle_origin: str,
     last_error: str | None = None,
+    control: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Diagnostic attributes of one published evaluation (schema v1).
+    """Diagnostic attributes of one published evaluation (schema v1.1).
 
     ``decision`` is the M1 ``BoilerDecision`` computed on the same snapshot and
-    with the same ``now`` as ``collection``. In observe the command fields stay
-    ``None``: the observer never sends a command.
+    with the same ``now`` as ``collection``. ``control`` carries the M2-B fields
+    (``heating_boiler_command.command_diagnostics``); without it the command
+    fields keep their idle values: an observer never sends a command.
     """
     if decision.evaluated_at != collection.now:
         raise ValueError("decision and collection must share the same clock")
+    payload = {
+        **DEFAULT_CONTROL_FIELDS,
+        **(control or {}),
+    }
     return json_safe(
         {
             "schema_version": SCHEMA_VERSION,
+            "schema_minor": SCHEMA_MINOR,
             "mode": mode,
             "owner": owner,
             "evaluated_at": collection.now,
@@ -962,9 +1024,67 @@ def build_boiler_diagnostics(
             "conditions": [condition_to_dict(condition) for condition in decision.conditions],
             "cycle": cycle_to_dict(decision.cycle),
             "cycle_origin": cycle_origin,
-            "commanded_mode": None,
-            "last_command_at": None,
-            "last_confirmation_at": None,
+            **payload,
             "last_error": _truncate_error(last_error),
         }
+    )
+
+
+# Attributes that carry the decision. The others (clock, generation, gaps, actual
+# values) change at every evaluation and are refreshed by the heartbeat only.
+SIGNIFICANT_SCALAR_KEYS: Final = (
+    "schema_version",
+    "schema_minor",
+    "mode",
+    "owner",
+    "proposed_action",
+    "reason",
+    "deadline",
+    "master_mode",
+    "count_raw",
+    "count_raw_valid",
+    "valid_valve_count",
+    "inputs_ok",
+    "cycle_origin",
+    "control_status",
+    "command_status",
+    "commanded_mode",
+    "last_command_at",
+    "last_confirmation_at",
+    "service_completed_at",
+    "command_attempts",
+    "command_retry_at",
+    "last_error",
+)
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return tuple(sorted((str(key), _freeze(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def publication_signature(state: str, attributes: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Hashable summary of what a consumer must be told as soon as it changes.
+
+    It covers the state (M1 reason), the decision, the control and command
+    fields, the inputs, the set of eligible rooms with their valves, the
+    exclusion codes, the status of every condition and the cycle anchors. It
+    excludes ``evaluated_at``, ``generation``, the numeric gaps and targets and
+    the ``actual`` values of the conditions, which change with every sample.
+    """
+    rooms = tuple((room.get("climate_entity_id"), room.get("pilot_ok"), _freeze(room.get("valves"))) for room in attributes.get("rooms") or ())
+    excluded = tuple((room.get("climate_entity_id"), _freeze(room.get("reasons"))) for room in attributes.get("excluded_rooms") or ())
+    conditions = tuple((item.get("id"), item.get("status"), item.get("reason_code")) for item in attributes.get("conditions") or ())
+    return (
+        state,
+        tuple(_freeze(attributes.get(key)) for key in SIGNIFICANT_SCALAR_KEYS),
+        _freeze(attributes.get("inputs")),
+        _freeze(attributes.get("cycle")),
+        _freeze(attributes.get("external_owners")),
+        rooms,
+        excluded,
+        conditions,
     )

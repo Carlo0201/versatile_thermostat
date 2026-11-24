@@ -129,6 +129,8 @@ def generate_case(rng: random.Random, now: float) -> dict[str, dict[str, Any]]:
         count_state = str(len({str(item).lower() for item in ids}))
     elif count_choice < 0.8:
         count_state = str(len(ids))
+    elif count_choice < 0.82:
+        count_state = str(max(len({str(item).lower() for item in ids}) - 1, 0))  # lower than the unique ids (review I-3)
     elif count_choice < 0.85:
         count_state = rng.choice(["unknown", "unavailable", "-1", "1.5", "abc"])
     else:

@@ -279,6 +279,8 @@ def test_underlying_entities_missing_or_malformed_means_no_valve(config):
         ("3.0", ["a", "b", "c"], True, 3),
         ("2", ["a", "b", "b"], True, 2),  # repeated id: valid when the count matches the unique ids
         ("3", ["a", "b", "b"], False, 3),
+        ("2", ["a", "b", "c"], False, 2),  # a count lower than the unique ids is invalid (review M2-A I-3)
+        ("4", ["a", "b", "c"], False, 4),  # and so is a higher one
         ("2", ["a", "B", "b"], True, 2),  # unique() is case insensitive
         ("0", [], True, 0),
         ("1", [], False, 1),
@@ -813,11 +815,55 @@ def test_valid_section_roundtrip(config):
     assert config.required_entity_ids() == (MASTER, CENTRAL, COUNT, CONSENT_A, CONSENT_B)
 
 
-def test_control_is_not_selectable_and_unknown_modes_are_rejected():
-    assert collector.SELECTABLE_MODES == ("disabled", "observe")
-    assert parse_error(section(mode="control")) == ("control_not_available", "mode")
+OWNERS = ["automation.caldaia_controllo", "automation.caldaia_legacy_1", "automation.caldaia_legacy_2"]
+
+
+def control_section(**changes: Any) -> dict[str, Any]:
+    values: dict[str, Any] = {"mode": "control", "external_owner_entity_ids": list(OWNERS), "control_confirmed": True}
+    values.update(changes)
+    return section(**values)
+
+
+def test_control_needs_owners_and_the_explicit_confirmation():
+    assert collector.SELECTABLE_MODES == ("disabled", "observe", "control")
+    assert collector.CONFIG_FLOW_MODES == ("disabled", "observe")  # a new entry never offers control
     assert parse_error(section(mode="Observe")) == ("unsupported_mode", "mode")
     assert parse_error(section(mode=3)) == ("unsupported_mode", "mode")
+    # neither the owners nor the confirmation: no implicit control
+    assert parse_error(section(mode="control")) == ("required", "external_owner_entity_ids")
+    assert parse_error(section(mode="control", external_owner_entity_ids=list(OWNERS))) == ("control_not_confirmed", "control_confirmed")
+    for value in (False, None, "true", 1):
+        assert parse_error(section(mode="control", external_owner_entity_ids=list(OWNERS), control_confirmed=value)) == ("control_not_confirmed", "control_confirmed")
+    config = collector.parse_orchestration_config(control_section())
+    assert config.mode == "control" and config.control_confirmed is True and config.external_owner_entity_ids == tuple(OWNERS)
+
+
+def test_external_owners_are_validated():
+    assert parse_error(control_section(external_owner_entity_ids=[])) == ("required", "external_owner_entity_ids")
+    assert parse_error(control_section(external_owner_entity_ids=["sensor.not_a_controller"])) == ("invalid_domain", "external_owner_entity_ids")
+    assert parse_error(control_section(external_owner_entity_ids=["automation.Bad"])) == ("invalid_entity", "external_owner_entity_ids")
+    assert parse_error(control_section(external_owner_entity_ids={"a": 1})) == ("invalid_entity", "external_owner_entity_ids")
+    assert parse_error(control_section(external_owner_entity_ids=[f"automation.a{index}" for index in range(17)])) == ("too_many_external_owners", "external_owner_entity_ids")
+    # no owner may coincide with the master, the consent or any other input
+    for other in (MASTER, CONSENT_A, "climate.vt_living", "input_boolean.bedroom_pdc"):
+        owner = other if other.split(".")[0] in collector.EXTERNAL_OWNER_DOMAINS else None
+        if owner is None:
+            continue
+        # the error names the binding checked last (a room binding or the owners)
+        assert parse_error(control_section(external_owner_entity_ids=[owner]))[0] == "duplicate_binding", owner
+    assert parse_error(control_section(external_owner_entity_ids=[OWNERS[0], OWNERS[0]])) == ("duplicate_binding", "external_owner_entity_ids")
+    assert parse_error(control_section(**{"consent_entity_ids": ["input_boolean.same"], "external_owner_entity_ids": ["input_boolean.same"]})) == (
+        "duplicate_binding",
+        "external_owner_entity_ids",
+    )
+
+
+def test_observe_accepts_optional_owners_and_ignores_the_confirmation():
+    config = collector.parse_orchestration_config(section(external_owner_entity_ids=[OWNERS[0]]))
+    assert config.mode == "observe" and config.external_owner_entity_ids == (OWNERS[0],) and config.control_confirmed is False
+    assert collector.parse_orchestration_config(SECTION).external_owner_entity_ids == ()
+    # the owners are never part of the entities the collector reads
+    assert OWNERS[0] not in collector.parse_orchestration_config(control_section()).configured_entity_ids()
 
 
 def test_section_must_be_a_mapping():
@@ -962,6 +1008,14 @@ EXPECTED_KEYS = {
     "last_command_at",
     "last_confirmation_at",
     "last_error",
+    # schema 1.1 (M2-B), compatible additions
+    "schema_minor",
+    "control_status",
+    "command_status",
+    "service_completed_at",
+    "command_attempts",
+    "command_retry_at",
+    "external_owners",
 }
 
 
@@ -988,6 +1042,8 @@ def test_diagnostics_schema_v1(config):
     assert attributes["generation"] == 7 and attributes["evaluated_at"] == NOW
     assert attributes["proposed_action"] == decision.action and attributes["reason"] == decision.reason
     assert attributes["commanded_mode"] is None and attributes["last_command_at"] is None and attributes["last_confirmation_at"] is None
+    assert attributes["schema_minor"] == 1 and attributes["control_status"] == "inactive" and attributes["command_status"] is None
+    assert attributes["command_attempts"] == 0 and attributes["external_owners"] == [] and attributes["service_completed_at"] is None
     assert attributes["rooms"][0] == {"climate_entity_id": "climate.vt_bedroom", "room_key": "bedroom", "target": 19.0, "gap": 2.0, "pilot_ok": True, "valves": ["climate.v_bed"]}
     assert attributes["count_raw"] == 3 and attributes["count_raw_valid"] is True and attributes["valid_valve_count"] == 3 and attributes["inputs_ok"] is True
     assert attributes["cycle"].keys() == {"m", "off", "r", "s"}
@@ -1044,3 +1100,95 @@ def test_collector_source_has_no_home_assistant_import_or_global_clock():
     source = (COMPONENT_DIR / "heating_boiler_collector.py").read_text(encoding="utf-8")
     for forbidden in ("homeassistant", "import time", "datetime.now", "utcnow", "time.time", "call_service", "async_call"):
         assert forbidden not in source, forbidden
+
+
+# ---------------------------------------------------------------------------
+# Schema 1.1 control fields and the publication signature (M2-B)
+# ---------------------------------------------------------------------------
+
+
+def test_control_fields_override_the_idle_defaults(config):
+    collection = collect(base_snapshot(), config)
+    decision = policy.evaluate_boiler(policy_snapshot(collection), None, NOW)
+    control = {
+        "control_status": "pending",
+        "command_status": "pending",
+        "commanded_mode": "heat",
+        "last_command_at": NOW - 5,
+        "command_attempts": 2,
+        "external_owners": [{"entity_id": OWNERS[0], "state": "off"}],
+    }
+    attributes = collector.build_boiler_diagnostics(collection, decision, mode="control", owner="controller", generation=3, cycle_origin="new_observation", control=control)
+    assert set(attributes) == EXPECTED_KEYS
+    assert attributes["owner"] == "controller" and attributes["control_status"] == "pending" and attributes["commanded_mode"] == "heat"
+    assert attributes["command_attempts"] == 2 and attributes["external_owners"] == control["external_owners"]
+    assert attributes["last_confirmation_at"] is None  # untouched default
+    empty = collector.empty_diagnostics("control", owner=None, control={"control_status": "starting"})
+    assert set(empty) == EXPECTED_KEYS and empty["control_status"] == "starting"
+    assert collector.DEFAULT_CONTROL_FIELDS["external_owners"] == []  # the shared default is never mutated
+    collector.empty_diagnostics("disabled")["external_owners"].append("x")
+    assert collector.DEFAULT_CONTROL_FIELDS["external_owners"] == []
+
+
+def _published(config, **changes):
+    collection = collect(base_snapshot(**changes), config)
+    decision = policy.evaluate_boiler(policy_snapshot(collection), None, NOW)
+    attributes = collector.build_boiler_diagnostics(collection, decision, mode="observe", owner="observer", generation=1, cycle_origin="new_observation")
+    return decision.reason, attributes
+
+
+def test_signature_ignores_the_clock_the_generation_and_the_sample_values(config):
+    state, attributes = _published(config)
+    reference = collector.publication_signature(state, attributes)
+    hash(reference)
+    noisy = copy.deepcopy(attributes)
+    noisy["evaluated_at"] += 600
+    noisy["generation"] += 99
+    for room in noisy["rooms"]:
+        room["gap"] = round(room["gap"] + 0.07, 3)
+        room["target"] += 0.5
+    for condition in noisy["conditions"]:
+        condition["actual"] = "changed-%s" % condition["id"]
+        condition["expected"] = "changed"
+    assert collector.publication_signature(state, noisy) == reference
+
+
+def test_signature_detects_every_significant_change(config):
+    state, attributes = _published(config)
+    reference = collector.publication_signature(state, attributes)
+    assert collector.publication_signature("other_reason", attributes) != reference
+
+    def changed(mutate):
+        copied = copy.deepcopy(attributes)
+        mutate(copied)
+        return collector.publication_signature(state, copied)
+
+    mutations = [
+        lambda a: a.update(proposed_action="heat" if a["proposed_action"] != "heat" else "off"),
+        lambda a: a.update(master_mode="heat"),
+        lambda a: a.update(valid_valve_count=a["valid_valve_count"] + 1),
+        lambda a: a.update(inputs_ok=not a["inputs_ok"]),
+        lambda a: a.update(owner="controller"),
+        lambda a: a.update(control_status="pending"),
+        lambda a: a.update(command_status="confirmed"),
+        lambda a: a.update(commanded_mode="off"),
+        lambda a: a.update(last_command_at=1.0),
+        lambda a: a.update(last_confirmation_at=1.0),
+        lambda a: a.update(command_attempts=3),
+        lambda a: a.update(last_error="evaluation_error:X"),
+        lambda a: a.update(deadline=(a["deadline"] or 0) + 1),
+        lambda a: a["inputs"].update(consent=not a["inputs"]["consent"]),
+        lambda a: a["cycle"].update(off=12345),
+        lambda a: a["rooms"].pop(),
+        lambda a: a["rooms"][0].update(pilot_ok=not a["rooms"][0]["pilot_ok"]),
+        lambda a: a["rooms"][0]["valves"].append("climate.extra"),
+        lambda a: a["excluded_rooms"].append({"climate_entity_id": "climate.x", "reasons": ["window_open"]}),
+        lambda a: a["conditions"][0].update(status="fail" if a["conditions"][0]["status"] != "fail" else "pass"),
+        lambda a: a["external_owners"].append({"entity_id": "automation.x", "state": "on"}),
+    ]
+    for index, mutate in enumerate(mutations):
+        assert changed(mutate) != reference, index
+
+
+def test_signature_of_empty_diagnostics_is_hashable():
+    hash(collector.publication_signature("starting", collector.empty_diagnostics("observe", owner="observer")))

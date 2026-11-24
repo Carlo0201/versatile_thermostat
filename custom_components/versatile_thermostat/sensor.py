@@ -1132,7 +1132,7 @@ class TotalPowerActiveDeviceForBoilerSensor(NbActiveDeviceForBoilerSensor):
 
 
 class HeatingOrchestrationBoilerSensor(SensorEntity):
-    """Diagnostic entity of the boiler orchestration (schema v1, CONTRATTI.md section 2).
+    """Diagnostic entity of the boiler orchestration (schema v1.1, CONTRATTI.md section 2).
 
     The state is the M1 decision reason, or ``disabled`` / ``starting`` /
     ``error``. The entity only mirrors what the manager publishes; it never

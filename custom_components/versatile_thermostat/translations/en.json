@@ -287,7 +287,7 @@
             },
             "heating_orchestration": {
                 "title": "Boiler orchestration",
-                "description": "Observation of the boiler decision (no command is sent). Choose `observe` to publish a diagnostic entity with the proposed boiler action. `control` is not available. Rooms are added in the next step.",
+                "description": "Observation of the boiler decision. Choose `observe` to publish a diagnostic entity with the proposed boiler action (no command is sent). The `control` mode can be enabled later from the options of the central configuration. Rooms are added in the next step.",
                 "data": {
                     "mode": "Mode",
                     "master_entity_id": "Boiler master (climate)",
@@ -297,10 +297,11 @@
                     "pilot_filter_entity_id": "Pilot filter",
                     "pilot_ready_entity_id": "Pilot ready",
                     "consent_entity_ids": "Native consents (all must be on)",
-                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)"
+                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)",
+                    "external_owner_entity_ids": "External controllers that must be off (control)"
                 },
                 "data_description": {
-                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands.",
+                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands. control: commands the boiler master (options flow only, with confirmation).",
                     "master_entity_id": "Climate entity of the boiler master, only read",
                     "central_mode_entity_id": "Select with the central mode (Auto / Heat only allow heating)",
                     "active_count_entity_id": "Sensor whose state is the active count and whose attribute active_device_ids lists the active valves",
@@ -308,7 +309,18 @@
                     "pilot_filter_entity_id": "Optional on/off entity of the pilot filter",
                     "pilot_ready_entity_id": "Optional on/off entity: pilot ready",
                     "consent_entity_ids": "At least one on/off entity. The consent is true only when all are on",
-                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written"
+                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written",
+                    "external_owner_entity_ids": "Automations (or helpers) that today command the boiler master, for example the stable boiler control and the legacy ones. In control the integration sends nothing unless all of them are exactly off; it never switches them itself. Required for control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Confirm the boiler control",
+                "description": "This integration will command the boiler master {master} (heat / off).\n\n1. External controllers that must be off, never switched by this integration: {owners}. Until all of them are off nothing is sent.\n2. After every start or reload it only observes for at least 30 s before sending anything.\n3. A command counts as confirmed only when the master reports the commanded mode: at most 4 sends, with retries after 60, 120 and 300 s.\n4. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_control": "I confirm: this integration may command the boiler master"
+                },
+                "data_description": {
+                    "confirm_control": "Required to enable the control mode"
                 }
             },
             "heating_orchestration_rooms": {
@@ -479,8 +491,8 @@
             "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README",
             "ho_invalid_section": "The configuration section is invalid",
             "ho_unsupported_mode": "Unsupported mode",
-            "ho_control_not_available": "The control mode is not available",
-            "ho_required": "This field is required in observe mode",
+            "ho_control_not_confirmed": "Confirm the activation, or go back and choose observe",
+            "ho_required": "This field is required in observe and control mode",
             "ho_invalid_entity": "Invalid entity id",
             "ho_invalid_domain": "The entity has an unsupported domain for this field",
             "ho_duplicate_binding": "The same entity is used for two different bindings",
@@ -489,6 +501,7 @@
             "ho_pdc_incomplete": "The PDC needs both the split and the session",
             "ho_too_many_rooms": "Too many rooms",
             "ho_too_many_consents": "Too many consent entities",
+            "ho_too_many_external_owners": "Too many external controllers",
             "ho_invalid_room": "Invalid room"
         },
         "abort": {
@@ -779,7 +792,7 @@
             },
             "heating_orchestration": {
                 "title": "Boiler orchestration - {name}",
-                "description": "Observation of the boiler decision (no command is sent). Choose `observe` to publish a diagnostic entity with the proposed boiler action. `control` is not available. Rooms are added in the next step.",
+                "description": "Boiler orchestration. `observe` evaluates and publishes only. `control` lets this integration switch the boiler master between heat and off; it needs the external controllers below and asks for a confirmation in the next step. Rooms are added afterwards.",
                 "data": {
                     "mode": "Mode",
                     "master_entity_id": "Boiler master (climate)",
@@ -789,10 +802,11 @@
                     "pilot_filter_entity_id": "Pilot filter",
                     "pilot_ready_entity_id": "Pilot ready",
                     "consent_entity_ids": "Native consents (all must be on)",
-                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)"
+                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)",
+                    "external_owner_entity_ids": "External controllers that must be off (control)"
                 },
                 "data_description": {
-                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands.",
+                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands. control: commands the boiler master (options flow only, with confirmation).",
                     "master_entity_id": "Climate entity of the boiler master, only read",
                     "central_mode_entity_id": "Select with the central mode (Auto / Heat only allow heating)",
                     "active_count_entity_id": "Sensor whose state is the active count and whose attribute active_device_ids lists the active valves",
@@ -800,7 +814,18 @@
                     "pilot_filter_entity_id": "Optional on/off entity of the pilot filter",
                     "pilot_ready_entity_id": "Optional on/off entity: pilot ready",
                     "consent_entity_ids": "At least one on/off entity. The consent is true only when all are on",
-                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written"
+                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written",
+                    "external_owner_entity_ids": "Automations (or helpers) that today command the boiler master, for example the stable boiler control and the legacy ones. In control the integration sends nothing unless all of them are exactly off; it never switches them itself. Required for control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Confirm the boiler control - {name}",
+                "description": "This integration will command the boiler master {master} (heat / off).\n\n1. External controllers that must be off, never switched by this integration: {owners}. Until all of them are off nothing is sent.\n2. After every start or reload it only observes for at least 30 s before sending anything.\n3. A command counts as confirmed only when the master reports the commanded mode: at most 4 sends, with retries after 60, 120 and 300 s.\n4. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_control": "I confirm: this integration may command the boiler master"
+                },
+                "data_description": {
+                    "confirm_control": "Required to enable the control mode"
                 }
             },
             "heating_orchestration_rooms": {
@@ -971,8 +996,8 @@
             "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README",
             "ho_invalid_section": "The configuration section is invalid",
             "ho_unsupported_mode": "Unsupported mode",
-            "ho_control_not_available": "The control mode is not available",
-            "ho_required": "This field is required in observe mode",
+            "ho_control_not_confirmed": "Confirm the activation, or go back and choose observe",
+            "ho_required": "This field is required in observe and control mode",
             "ho_invalid_entity": "Invalid entity id",
             "ho_invalid_domain": "The entity has an unsupported domain for this field",
             "ho_duplicate_binding": "The same entity is used for two different bindings",
@@ -981,6 +1006,7 @@
             "ho_pdc_incomplete": "The PDC needs both the split and the session",
             "ho_too_many_rooms": "Too many rooms",
             "ho_too_many_consents": "Too many consent entities",
+            "ho_too_many_external_owners": "Too many external controllers",
             "ho_invalid_room": "Invalid room"
         },
         "abort": {
@@ -1069,7 +1095,8 @@
         "heating_orchestration_mode": {
             "options": {
                 "disabled": "Disabled",
-                "observe": "Observe only (no command)"
+                "observe": "Observe only (no command)",
+                "control": "Control (commands the boiler master)"
             }
         }
     },

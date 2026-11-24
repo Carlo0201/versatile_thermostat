@@ -44,6 +44,16 @@ L'integrazione runtime PDC (manager, config, sensori PDC) toccherà file di A: a
 - Subagent: disponibili in questa sessione.
 - Home Assistant: connettore MCP attivo dal pomeriggio del 24/11. Le scritture sull'impianto restano vietate ai worker: oggi solo il Worker D legge, in sola lettura. Qualsiasi scrittura passa dal coordinatore, con backup e ripristino preparati prima.
 - Divario di versione: i test girano su HA 2026.10.4 (versione fissata dal repo), l'impianto è su **2026.11.2**. Un secondo ambiente `…\vtherm-ha-test\venv-ha2611` (HA 2026.11.2) è in preparazione per la prova di compatibilità prima della distribuzione.
+- **24/11 sera — nuovo mandato di Carlo**: completare il fork in locale (caldaia, PDC, coordinamento, manuale e provenienza, sospensione generale, contratti per le card).
+  - Vincoli: niente HA in esecuzione né test HA; nessun intervento sull'impianto; nessuna modifica alle card Oikos. Carlo ha poi autorizzato **commit e push periodici** sul branch `codex/avatto-trv-pilot` del fork (pubblico, `Carlo0201/versatile_thermostat`).
+  - Checkpoint `c16fd0a` (M1, M2-A, M3–M5, piano) committato e pushato. Gli script `plans/*.ps1` restano esclusi.
+  - Il worker M2-B precedente si era fermato per limite di utilizzo senza scrivere file.
+  - Ambiguità di M2-B risolte dal coordinatore (`M2-B-SPEC.md`): 4 invii al massimo (1 + 3 ritentativi), OFF senza attendere il salvataggio, OFF che sostituisce un HEAT pendente, ricalcolo prima di ogni invio.
+  - `CONTRATTI.md` v1.1: modalità separate (§6), sospensione generale (§7), storico e attività (§8).
+  - Attivi:
+    - **W1** (M2-B più correzioni della review M2-A): unico autore dei file condivisi;
+    - **W2** (review M3–M5, proprietà dell'inibizione, collector e manager PDC in file nuovi, integrazione rinviata a dopo W1).
+  - Prossimi: collegare PDC e sospensione ai file condivisi (dopo W1), review finale, documentazione di installazione.
 - **Ripresa — punto 1 (caldaia).**
   - Review M2-A (`M2-A-REVIEW.md`): 0 bloccanti, 7 importanti, 9 minori; M2-A accettabile come osservazione. Test puri 342 passati e 1 saltato sui due file.
   - Specifica `M2-B-SPEC.md`, con le aggiunte della review.

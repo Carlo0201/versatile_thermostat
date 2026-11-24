@@ -261,11 +261,24 @@ CONF_HO_ROOM_PDC = "pdc"
 CONF_HO_PDC_SPLIT = "split_entity_id"
 CONF_HO_PDC_SESSION = "session_entity_id"
 CONF_HO_ROOMS_TO_REMOVE = "rooms_to_remove"
-HO_MODE_DISABLED = "disabled"
-HO_MODE_OBSERVE = "observe"
-HO_SELECTABLE_MODES = [HO_MODE_DISABLED, HO_MODE_OBSERVE]
+# M2-B (boiler control). ``control`` needs the external controllers that must be off
+# and an explicit confirmation written only by the options flow.
+CONF_HO_EXTERNAL_OWNERS = "external_owner_entity_ids"
+CONF_HO_CONTROL_CONFIRMED = "control_confirmed"
+CONF_HO_CONTROL_CONFIRM = "confirm_control"
+# The mode strings have a single source: the pure collector (no Home Assistant import).
+from .heating_boiler_collector import CONFIG_FLOW_MODES as _HO_CONFIG_FLOW_MODES  # noqa: E402
+from .heating_boiler_collector import MODE_CONTROL as HO_MODE_CONTROL  # noqa: E402
+from .heating_boiler_collector import MODE_DISABLED as HO_MODE_DISABLED  # noqa: E402
+from .heating_boiler_collector import MODE_OBSERVE as HO_MODE_OBSERVE  # noqa: E402
+from .heating_boiler_collector import SELECTABLE_MODES as _HO_ALL_MODES  # noqa: E402
+
+# Modes of the creation flow (never ``control``) and of the options flow.
+HO_SELECTABLE_MODES = list(_HO_CONFIG_FLOW_MODES)
+HO_OPTIONS_MODES = list(_HO_ALL_MODES)
 HO_BOILER_SENSOR_SUFFIX = "_heating_orchestration_boiler"
-HO_STORAGE_VERSION = 1
+# Version 2 adds the ``command`` record to the stored cycle (migration from 1).
+HO_STORAGE_VERSION = 2
 HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
 CONF_WINDOW_ACTION = "window_action"
 
