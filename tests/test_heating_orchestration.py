@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -110,16 +110,19 @@ def clock_fixture():
 
 @pytest.fixture(name="service_calls")
 def service_calls_fixture(hass):
-    """Every attempt to call a service, recorded and still executed."""
+    """Every service call, recorded from the ``call_service`` events (``ServiceRegistry`` has ``__slots__``: it cannot be patched).
+
+    Items are ``(domain, service, (), service_data)``.
+    """
     calls: list = []
-    original = hass.services.async_call
 
-    async def spy(domain, service, *args, **kwargs):
-        calls.append((domain, service, args, kwargs))
-        return await original(domain, service, *args, **kwargs)
+    @callback
+    def _record(event) -> None:
+        calls.append((event.data.get("domain"), event.data.get("service"), (), event.data.get("service_data")))
 
-    with patch.object(hass.services, "async_call", spy):
-        yield calls
+    unsub = hass.bus.async_listen("call_service", _record)
+    yield calls
+    unsub()
 
 
 def put_states(hass: HomeAssistant, snapshot: dict) -> None:
@@ -320,11 +323,8 @@ async def test_recorder_exclusions_cover_the_bulky_attributes():
 async def test_observe_never_calls_a_service_nor_writes_the_legacy_entities(hass: HomeAssistant, init_vtherm_api, hass_storage, service_calls, clock):
     put_states(hass, world(clock.now))
     legacy_before = hass.states.get(LEGACY)
-    seen: list = []
-    hass.bus.async_listen("call_service", lambda event: seen.append(event.data))
     entry = await setup_central(hass, observe_section())
     service_calls.clear()
-    seen.clear()
 
     # inputs changing, heating requested, polling, a deadline: still no actuation
     for state in ("on", "off", "unknown"):
@@ -337,7 +337,8 @@ async def test_observe_never_calls_a_service_nor_writes_the_legacy_entities(hass
     await hass.config_entries.async_unload(entry.entry_id)
     await settle(hass)
 
-    assert service_calls == [] and seen == []
+    # the recorded events come from a @callback listener on the event bus: nothing was called
+    assert [call for call in service_calls if call[0] != "persistent_notification"] == []
     assert hass.states.get(LEGACY) == legacy_before
 
 
@@ -1027,8 +1028,18 @@ async def test_control_revalidates_with_a_new_evaluation_before_the_send(hass: H
 
     put_states(hass, control_world(clock.now))
     entry = await setup_central(hass, control_section())
-    with patch.object(manager_module, "evaluate_boiler", changing):
+    evaluations = []
+
+    def counting(*args, **kwargs):
+        evaluations.append(1)
+        return changing(*args, **kwargs)
+
+    with patch.object(manager_module, "evaluate_boiler", counting):
         await settle_control(hass, clock)
+        before = len(evaluations)
+        for _ in range(50):
+            await hass.async_block_till_done()  # a zero-delay loop would evaluate at every turn (review M2-B I-3)
+        assert len(evaluations) - before <= 4
     assert calls == []  # the revalidation did not confirm the action: nothing sent, no attempt consumed
     assert diagnostic(hass, entry).attributes["command_attempts"] == 0
 
@@ -1184,9 +1195,14 @@ async def test_options_flow_validates_the_external_controllers(hass: HomeAssista
     put_states(hass, control_world(clock.now))
     entry = await setup_central(hass, observe_section())
     form = await _options_flow_to_orchestration(hass, entry)
-    for owners, error in (([MASTER], "ho_duplicate_binding"), (["automation.not_existing"], "unknown_entity")):
+    cases = (
+        ([MASTER], "ho_invalid_domain"),  # a climate is not an external controller
+        (["input_boolean.consent_a"], "ho_duplicate_binding"),  # already a consent
+        (["automation.not_existing"], "unknown_entity"),
+    )
+    for owners, error in cases:
         result = await hass.config_entries.options.async_configure(form["flow_id"], {**_central_user_input("control"), "external_owner_entity_ids": owners})
-        assert result["step_id"] == "heating_orchestration" and error in result["errors"].values()
+        assert result["step_id"] == "heating_orchestration" and list(result["errors"].values()) == [error], (owners, result["errors"])
 
 
 async def test_options_flow_leaving_control_drops_the_confirmation(hass: HomeAssistant, init_vtherm_api, clock):

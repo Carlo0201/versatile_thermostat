@@ -63,9 +63,14 @@ RETRY_DELAYS_S: Final = (60.0, 120.0, 300.0)
 MAX_SENDS: Final = 1 + len(RETRY_DELAYS_S)
 SERVICE_TIMEOUT_S: Final = 30.0
 # A ``sending`` record older than this has lost its service task.
-SEND_STALE_AFTER_S: Final = SERVICE_TIMEOUT_S + 5.0
 # The ``heat`` record is saved before the service with this maximum wait.
 HEAT_PERSIST_WAIT_S: Final = 5.0
+SEND_STALE_AFTER_S: Final = HEAT_PERSIST_WAIT_S + SERVICE_TIMEOUT_S + 5.0
+# The send budget (4 sends) and the backoff are remembered per mode for this long, so that an
+# action flapping to ``none`` and back never resets them (review M2-B I-2).
+BUDGET_WINDOW_S: Final = 900.0
+# After an exhausted request is released (master left its known modes) the first new send waits this long.
+RELEASE_WAIT_S: Final = RETRY_DELAYS_S[0]
 # Post setup/reload settling: two consecutive valid evaluations this far apart.
 SETTLE_MIN_INTERVAL_S: Final = 30.0
 
@@ -245,6 +250,16 @@ class CommandEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class ModeBudget:
+    """Sends already spent for one mode inside ``BUDGET_WINDOW_S`` (not persisted: a restart resets it)."""
+
+    mode: str
+    attempts: int
+    last_at: float
+    retry_at: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CommandStep:
     """Decision of one ``step``.
 
@@ -260,6 +275,7 @@ class CommandStep:
     control_status: str
     wake_at: float | None
     events: tuple[CommandEvent, ...] = ()
+    memory: tuple[ModeBudget, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,8 +390,9 @@ def start_send(
 ) -> tuple[CommandRecord, CommandEvent]:
     """Record that a send begins (after the revalidation, before the service call).
 
-    ``attempt`` 1 starts a new request; a higher number must continue a failed
-    request of the same mode that is waiting for its retry.
+    ``attempt`` 1 starts a new request. A higher number either continues the failed
+    request of the same mode that is waiting for its retry, or resumes the budget
+    remembered for the mode after the previous request was abandoned.
     """
     if mode not in COMMAND_MODES:
         raise ValueError(f"unknown command mode {mode!r}")
@@ -386,10 +403,12 @@ def start_send(
         if previous is not None and (previous.is_active or previous.is_exhausted):
             raise ValueError("a new request cannot replace an unresolved one")
         base = base_master
-    else:
-        if previous is None or previous.mode != mode or previous.status != STATUS_FAILED or previous.retry_at is None or previous.attempts != attempt - 1:
+    elif previous is not None and (previous.is_active or previous.is_exhausted):
+        if previous.mode != mode or previous.status != STATUS_FAILED or previous.retry_at is None or previous.attempts != attempt - 1:
             raise ValueError("a retry needs the failed request of the same mode")
         base = previous.base_master
+    else:
+        base = base_master
     record = CommandRecord(
         mode=mode,
         status=STATUS_SENDING,
@@ -457,6 +476,52 @@ def _advance(record: CommandRecord, inputs: CommandInputs) -> tuple[CommandRecor
     return record, ()
 
 
+def _opposite(mode: str) -> str:
+    return COMMAND_OFF if mode == COMMAND_HEAT else COMMAND_HEAT
+
+
+def _prune(memory: tuple[ModeBudget, ...], now: float) -> tuple[ModeBudget, ...]:
+    return tuple(item for item in memory if now - item.last_at < BUDGET_WINDOW_S)
+
+
+def _budget_of(memory: tuple[ModeBudget, ...], mode: str) -> ModeBudget | None:
+    return next((item for item in memory if item.mode == mode), None)
+
+
+def _set_budget(memory: tuple[ModeBudget, ...], budget: ModeBudget) -> tuple[ModeBudget, ...]:
+    return tuple(item for item in memory if item.mode != budget.mode) + (budget,)
+
+
+def _drop_budget(memory: tuple[ModeBudget, ...], mode: str) -> tuple[ModeBudget, ...]:
+    return tuple(item for item in memory if item.mode != mode)
+
+
+def _track(memory: tuple[ModeBudget, ...], before: CommandRecord | None, after: CommandRecord | None, now: float) -> tuple[ModeBudget, ...]:
+    """Remember the sends spent by a mode.
+
+    A confirmation forgets the mode; a send of a mode forgets the opposite one; a request
+    that is replaced before being confirmed keeps its spent attempts and its backoff;
+    a cancellation (ownership lost) starts afresh.
+    """
+    if after is None:
+        return memory
+    mode = after.mode
+    if after.status == STATUS_CONFIRMED:
+        return _drop_budget(memory, mode)
+    if after.status in (STATUS_SENDING, STATUS_PENDING, STATUS_FAILED):
+        return _set_budget(_drop_budget(memory, _opposite(mode)), ModeBudget(mode, after.attempts, after.at, after.retry_at))
+    transition = before is not None and before is not after and before.status != after.status
+    if after.status == STATUS_SUPERSEDED and transition:
+        if before.retry_at is not None:
+            retry_at = before.retry_at
+        else:
+            retry_at = None if after.attempts >= MAX_SENDS else now + _retry_delay(after.attempts)
+        return _set_budget(memory, ModeBudget(mode, after.attempts, now, retry_at))
+    if after.status == STATUS_CANCELLED and transition:
+        return _drop_budget(memory, mode)
+    return memory
+
+
 def _wake_at(record: CommandRecord | None) -> float | None:
     if record is None or not record.is_active:
         return None
@@ -467,11 +532,16 @@ def _wake_at(record: CommandRecord | None) -> float | None:
     return record.at + SEND_STALE_AFTER_S
 
 
-def step(record: CommandRecord | None, inputs: CommandInputs) -> CommandStep:
-    """One decision. Idempotent: applying its record and calling again adds no event."""
+def step(record: CommandRecord | None, inputs: CommandInputs, memory: tuple[ModeBudget, ...] = ()) -> CommandStep:
+    """One decision. Idempotent: applying its record and memory and calling again adds no event.
+
+    ``memory`` is the per-mode send budget returned by the previous step.
+    """
     ownership = inputs.ownership
     events: list[CommandEvent] = []
     current = record
+    now = inputs.now
+    mem = _prune(memory, now)
 
     if not ownership.is_owner or inputs.shutting_down:
         # Everything pending is cancelled: confirmations, retries, timers. No compensation.
@@ -479,27 +549,49 @@ def step(record: CommandRecord | None, inputs: CommandInputs) -> CommandStep:
             detail = "shutdown" if ownership.is_owner else ownership.block_reason
             current = replace(current, status=STATUS_CANCELLED, retry_at=None)
             events.append(CommandEvent(EVENT_CANCELLED, current.mode, current.attempts, detail))
+            mem = _track(mem, record, current, now)
+        elif current is not None and current.is_exhausted and not inputs.shutting_down and inputs.master_mode not in MASTER_KNOWN_MODES:
+            # The master left its known modes (unavailable...): the observed state changed, so the
+            # exhausted request is released. A later send has a fresh budget after a short wait, so
+            # that an unanswered master can neither lock the boiler on nor produce a storm.
+            mode = current.mode
+            current, released = _superseded(current, "master_unavailable")
+            events.extend(released)
+            mem = _set_budget(_drop_budget(mem, mode), ModeBudget(mode, 0, now, now + RELEASE_WAIT_S))
         status = CONTROL_INACTIVE if inputs.shutting_down else control_status_when_blocked(ownership)
-        return CommandStep(current, None, 0, status, None, tuple(events))
+        return CommandStep(current, None, 0, status, None, tuple(events), mem)
 
     if current is not None and (current.is_active or current.is_exhausted):
         current, advanced = _advance(current, inputs)
         events.extend(advanced)
+    mem = _track(mem, record, current, now)
 
     send: str | None = None
     attempt = 0
+    blocked = False
+    waiting_until: float | None = None
     if current is not None and current.status == STATUS_FAILED and current.retry_at is not None:
         if inputs.now >= current.retry_at:
             send, attempt = current.mode, current.attempts + 1
     elif current is None or not (current.is_active or current.is_exhausted):
         if inputs.action in COMMAND_MODES and inputs.master_mode in MASTER_KNOWN_MODES and inputs.master_mode != inputs.action:
             send, attempt = inputs.action, 1
+            budget = _budget_of(mem, inputs.action)
+            if budget is not None:
+                # The mode already spent sends inside the window: the budget and the backoff go on.
+                if budget.attempts >= MAX_SENDS:
+                    send, attempt, blocked = None, 0, True
+                    waiting_until = budget.last_at + BUDGET_WINDOW_S
+                elif budget.retry_at is not None and now < budget.retry_at:
+                    send, attempt, waiting_until = None, 0, budget.retry_at
+                else:
+                    attempt = budget.attempts + 1
     if send is not None and not inputs.settled:
         send, attempt = None, 0
 
-    if current is not None and current.is_exhausted:
+    if blocked or (current is not None and current.is_exhausted):
         status = CONTROL_COMMAND_FAILED
-    elif send is not None or (current is not None and current.is_active):
+    elif waiting_until is not None or (current is not None and current.is_active):
         status = CONTROL_PENDING
     elif not inputs.settled:
         status = CONTROL_SETTLING
@@ -507,8 +599,8 @@ def step(record: CommandRecord | None, inputs: CommandInputs) -> CommandStep:
         status = CONTROL_CONFIRMED
     else:
         status = CONTROL_READY
-    wake = None if send is not None else _wake_at(current)
-    return CommandStep(current, send, attempt, status, wake, tuple(events))
+    wake = None if send is not None else (_wake_at(current) or waiting_until)
+    return CommandStep(current, send, attempt, status, wake, tuple(events), mem)
 
 
 # ------------------------------------------------------------------ diagnostics

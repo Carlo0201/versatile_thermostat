@@ -58,13 +58,15 @@ class Harness:
         self.events: list = []
         self.send_id = 0
         self.t = T0
+        self.memory = ()
 
     def inputs(self, action, master, *, ownership=OWNER_OK, settled=True, shutting=False, at=None):
         return cmd.CommandInputs(now=self.t if at is None else at, action=action, master_mode=master, ownership=ownership, settled=settled, shutting_down=shutting)
 
     def step(self, action, master, **kwargs):
-        result = cmd.step(self.record, self.inputs(action, master, **kwargs))
+        result = cmd.step(self.record, self.inputs(action, master, **kwargs), self.memory)
         self.record = result.record
+        self.memory = result.memory
         self.events.extend(result.events)
         return result
 
@@ -256,7 +258,7 @@ def test_off_is_not_exempt_from_the_settling():
 @pytest.mark.parametrize("action, master", [("heat", "off"), ("off", "heat")])
 def test_a_command_is_sent_only_when_the_master_differs(action, master):
     result = Harness().step(action, master)
-    assert result.send == action and result.attempt == 1 and result.control_status == cmd.CONTROL_PENDING and result.record is None
+    assert result.send == action and result.attempt == 1 and result.control_status == cmd.CONTROL_READY and result.record is None  # pending only once the send really starts
 
 
 @pytest.mark.parametrize("action, master", [("heat", "heat"), ("off", "off")])
@@ -448,12 +450,87 @@ def test_the_limit_is_per_requested_mode_until_the_decision_changes():
         h.t += 301
     assert h.record.is_exhausted
     assert h.step("heat", "off").send is None
-    # the M1 action changes: the exhausted request is released
+    # the M1 action changes: the exhausted request is released...
     result = h.step("none", "off")
     assert h.record.status == cmd.STATUS_SUPERSEDED and result.send is None and result.control_status == cmd.CONTROL_READY
-    # and a later heat is a brand new request, with a fresh budget
+    # ...but the spent budget of the mode is remembered for the window (review M2-B I-2)
+    result = h.step("heat", "off")
+    assert result.send is None and result.control_status == cmd.CONTROL_COMMAND_FAILED
+    h.t += cmd.BUDGET_WINDOW_S - 1
+    assert h.step("heat", "off").send is None
+    h.t += 1
+    result = h.step("heat", "off")
+    assert result.send == "heat" and result.attempt == 1  # the window is over: a fresh budget
+
+
+def test_flapping_action_never_exceeds_four_sends_per_mode_in_the_window():
+    """Review M2-B I-2: failing service and an action that oscillates through none."""
+    for mode, master in (("heat", "off"), ("off", "heat")):
+        h = Harness()
+        sends = 0
+        end = T0 + cmd.BUDGET_WINDOW_S - 1
+        while h.t < end:
+            for action in (mode, "none"):
+                result = h.step(action, master)
+                if result.send:
+                    sends += 1
+                    h.begin(result, master)
+                    h.fail()
+                h.t += 2
+        assert sends <= cmd.MAX_SENDS, (mode, sends)
+        assert sends >= 2  # the backoff spaces them, it does not forbid them
+
+
+def test_a_confirmation_or_the_opposite_command_resets_the_budget():
+    h = Harness()
+    result = h.step("heat", "off")
+    h.begin(result, "off")
+    h.fail()
+    h.step("none", "off")
+    assert h.step("heat", "off").send is None  # backoff of the first failure still running
+    h.t += 61
+    result = h.step("heat", "off")
+    assert result.send == "heat" and result.attempt == 2
+    h.begin(result, "off")
+    h.step("none", "heat")  # the boiler really went on: confirmed
+    assert h.memory == ()
+    # an opposite command forgets the other mode
+    result = h.step("off", "heat")
+    h.begin(result, "heat")
+    h.fail()
+    result = h.step("none", "heat")
+    assert [b.mode for b in h.memory] == ["off"]
+    h.t += 61
+    h.step("none", "off")
     result = h.step("heat", "off")
     assert result.send == "heat" and result.attempt == 1
+    h.begin(result, "off")
+    h.step("heat", "off")
+    assert [b.mode for b in h.memory] == ["heat"] and h.memory[0].attempts == 1
+
+
+def test_exhausted_request_is_released_when_the_master_goes_unavailable():
+    """Review M2-B I-1: unavailable -> heat must not leave the boiler on for ever."""
+    h = Harness()
+    for _ in range(4):
+        result = h.step("off", "heat")
+        h.begin(result, "heat")
+        h.fail()
+        h.t += 301
+    assert h.record.is_exhausted and h.step("off", "heat").send is None
+    blocked = cmd.Ownership(False, cmd.BLOCK_MASTER_UNKNOWN, OWNER_OK.external_owners)
+    result = h.step("off", "unavailable", ownership=blocked)
+    assert h.record.status == cmd.STATUS_SUPERSEDED and h.events[-1].detail == "master_unavailable"
+    assert result.control_status == cmd.CONTROL_BLOCKED_MASTER_UNKNOWN
+    h.t += 40
+    result = h.step("off", "heat")  # the master is back in heat, the action is still off
+    assert result.send is None and result.wake_at == h.t - 40 + cmd.RELEASE_WAIT_S  # a short wait first
+    h.t += cmd.RELEASE_WAIT_S - 40
+    result = h.step("off", "heat")
+    assert result.send == "off" and result.attempt == 1  # a fresh budget with its own backoff
+    h.begin(result, "heat")
+    h.fail()
+    assert h.record.retry_at == h.t + 60
 
 
 def test_exhausted_request_is_released_when_the_master_changes_state():
@@ -764,8 +841,8 @@ def test_start_send_validation():
         cmd.start_send(None, mode="heat", attempt=0, now=T0, send_id=1, base_master="off")
     with pytest.raises(ValueError):
         cmd.start_send(None, mode="heat", attempt=5, now=T0, send_id=1, base_master="off")
-    with pytest.raises(ValueError):
-        cmd.start_send(None, mode="heat", attempt=2, now=T0, send_id=1, base_master="off")  # a retry needs a failed request
+    record, _ = cmd.start_send(None, mode="heat", attempt=2, now=T0, send_id=1, base_master="off")  # resumes a remembered budget
+    assert record.attempts == 2 and record.base_master == "off"
     pending = cmd.CommandRecord(mode="heat", status="pending", attempts=1, at=T0)
     with pytest.raises(ValueError):
         cmd.start_send(pending, mode="off", attempt=1, now=T0, send_id=2, base_master="heat")  # never over an unresolved request

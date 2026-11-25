@@ -107,6 +107,8 @@ from .heating_boiler_command import (
     CommandInputs,
     CommandRecord,
     CommandStep,
+    EVENT_SUPERSEDED,
+    COMMAND_HEAT,
     ExternalOwner,
     Ownership,
     SettlingState,
@@ -319,6 +321,8 @@ class FeatureHeatingOrchestrationManager:
         self._send_task: asyncio.Task | None = None
         self._send_mode: str | None = None
         self._send_seq = 0
+        self._budget: tuple = ()  # per-mode send budget (not persisted)
+        self._abandon_streak = 0  # consecutive abandoned sends: at most one immediate re-evaluation
         self._inflight_id: int | None = None  # send id of the request whose service call is running
 
         if self._config_error is not None:
@@ -839,6 +843,7 @@ class FeatureHeatingOrchestrationManager:
                 settled=self._settling.settled,
                 shutting_down=self._hass.is_stopping,
             ),
+            self._budget,
         )
         self._apply_step(step, ownership, reason=result.decision.reason, valves=result.collection.valid_valve_count)
         return step
@@ -848,6 +853,7 @@ class FeatureHeatingOrchestrationManager:
         """Adopt the record of a step, log its transitions and cancel a send that no longer applies."""
         previous = self._record
         self._record = step.record
+        self._budget = step.memory
         self._ownership = ownership
         self._control_status = step.control_status
         for event in step.events:
@@ -861,7 +867,15 @@ class FeatureHeatingOrchestrationManager:
         record = self._record
         # A replaced or cancelled request must not keep its service call alive (the
         # opposite command goes first). A confirmed one is left to finish by itself.
-        if not ownership.is_owner or record is None or record.send_id != inflight or record.status in (STATUS_SUPERSEDED, STATUS_CANCELLED):
+        replaced_by_opposite = any(event.kind == EVENT_SUPERSEDED and event.detail in (f"action:{COMMAND_HEAT}", f"action:{COMMAND_OFF}") for event in step.events)
+        # An action that merely became ``none`` does not interrupt a service call: its outcome is ignored by send id (review M2-B M-1).
+        if (
+            not ownership.is_owner
+            or record is None
+            or record.send_id != inflight
+            or (record.status == STATUS_SUPERSEDED and replaced_by_opposite)
+            or record.status == STATUS_CANCELLED
+        ):
             task.cancel()
 
     @callback
@@ -907,11 +921,12 @@ class FeatureHeatingOrchestrationManager:
             CommandInputs(
                 now=now, action=result.decision.action, master_mode=result.master_mode, ownership=ownership, settled=self._settling.settled, shutting_down=self._hass.is_stopping
             ),
+            self._budget,
         )
         self._apply_step(fresh, ownership, reason=result.decision.reason, valves=result.collection.valid_valve_count)
         if fresh.send != mode or fresh.attempt != attempt or not ownership.is_owner:
             # The action changed, the master moved or the ownership is gone: nothing is sent.
-            self.async_request_evaluation()
+            self._abandoned()
             return
 
         self._send_seq += 1
@@ -922,6 +937,7 @@ class FeatureHeatingOrchestrationManager:
             _LOGGER.error("%s - inconsistent command request: %s", self, err)
             return
         self._record = record
+        self._abandon_streak = 0
         self._control_status = CONTROL_PENDING
         self._log_event(event, reason=result.decision.reason, valves=result.collection.valid_valve_count)
         self.async_request_evaluation()
@@ -940,7 +956,7 @@ class FeatureHeatingOrchestrationManager:
         # The save may have taken a while: the request must still be ours and still unsent.
         current = self._record
         if current is None or current.send_id != send_id or current.status != STATUS_SENDING:
-            self.async_request_evaluation()
+            self._abandoned()
             return
         # Last look at the interlock after a possible wait for the save.
         if not self._read_ownership(result.master_mode, self._complete_evaluation_seen).is_owner:
@@ -972,6 +988,16 @@ class FeatureHeatingOrchestrationManager:
         self._schedule_save(STORE_COMMAND_DELAY_S)
         self.async_request_evaluation()
 
+    def _abandoned(self) -> None:
+        """A send was dropped: re-evaluate at once only the first time, then the normal cadence decides.
+
+        An immediate request after every abandonment would spin the loop if the recomputation kept
+        disagreeing with the evaluation that launched the send (review M2-B I-3).
+        """
+        self._abandon_streak += 1
+        if self._abandon_streak <= 1:
+            self.async_request_evaluation()
+
     def _unsupported_mode_error(self, master_entity_id: str | None, mode: str) -> str | None:
         """The master must expose the mode: a missing one is a failure, never a blind call."""
         state = self._hass.states.get(master_entity_id) if master_entity_id else None
@@ -987,7 +1013,7 @@ class FeatureHeatingOrchestrationManager:
             self._record = replace(record, status=STATUS_CANCELLED, retry_at=None)
             self._log_event(CommandEvent("cancelled", record.mode, record.attempts, "ownership_lost_before_send"))
             self._schedule_save(STORE_COMMAND_DELAY_S)
-        self.async_request_evaluation()
+        self._abandoned()
 
     # -------------------------------------------------------------- publication
 

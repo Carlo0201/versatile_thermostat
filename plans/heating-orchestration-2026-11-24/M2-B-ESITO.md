@@ -229,3 +229,42 @@ Non ho potuto leggere le note di rilascio 2026.11. Ho verificato **leggendo** (s
 4. **Logbook**: `OIKOS_HEATING_V1|boiler|<evento>|<modo>|attempt=<n>/4|reason=<motivo>|valves=<n>[|detail=<causa>]`, eventi `sent|confirmed|failed|exhausted|superseded|cancelled|unconfirmed` (da confermare con Oikos).
 5. **M-4**: documentare che `inputs.manual` e `inputs.pilot` valgono `off` anche se non configurati (o pubblicare `null`).
 6. **Registro modifiche** contratto: v1.1 (M2-B) con le aggiunte sopra.
+
+## 11. Correzioni review M2-B (`M2-B-REVIEW.md`, commit di riferimento `18b72f0`)
+
+Stato verificato prima di iniziare: rispetto a `18b72f0` risultavano modificate solo le traduzioni (da un altro worker); nessun file mio. Nessun commit, nessun HA eseguito. Per istruzione del coordinatore non ho rifatto campagne di mutazione né test casuali: le due ultime modifiche al modulo comando sono coperte da test puri nuovi (la campagna da 67 mutanti del §4 è del modulo precedente e non è stata rieseguita).
+
+| Rilievo | Esito | Come |
+| --- | --- | --- |
+| **I-1** richiesta esaurita mai sbloccata | Chiuso | Se il master esce dai modi noti (`unavailable`/`unknown`) una richiesta esaurita è rilasciata (`superseded`, detail `master_unavailable`). Il budget del modo riparte da zero ma con una attesa di 60 s (`RELEASE_WAIT_S`), poi 4 invii con backoff 60/120/300 s propri. Così `unavailable -> heat` non lascia la caldaia accesa senza domanda e un OFF `no_valid_radiator` resta possibile. Deviazione 6 dell'esito ritirata. Test: `test_exhausted_request_is_released_when_the_master_goes_unavailable`, scenario fake 20. |
+| **I-2** budget azzerato dal flapping | Chiuso | Memoria **per modo** (`ModeBudget`, `step(record, inputs, memory)`): tentativi spesi e prossimo `retry_at` sopravvivono a un supersede verso `none` per `BUDGET_WINDOW_S = 900 s`. Si azzera su conferma del modo, su invio del modo opposto, su annullamento per perdita di proprietà, o a finestra scaduta; una richiesta esaurita e poi sostituita blocca il modo fino alla fine della finestra. La memoria non è persistente (un riavvio la azzera). `start_send` accetta `attempt > 1` per riprendere il budget. Test puro che riproduce lo scenario (servizio in errore, azione che oscilla `modo/none` ogni 2 s, per heat e per off): **<= 4 invii per modo nella finestra** (`test_flapping_action_never_exceeds_four_sends_per_mode_in_the_window`), più reset su conferma/comando opposto e scenario fake 21 (conteggio valvole che oscilla, 100 giri: <= 4 chiamate). La decisione 1 della spec («release quando l'azione cambia») cede alla finestra, come richiesto. |
+| **I-3** ciclo a ritardo zero | Chiuso | Un invio abbandonato chiede al massimo **una** rivalutazione immediata (`_abandoned`, contatore azzerato quando un invio parte davvero); poi cadenza normale (evento, timer, poll 15 s). Scenario fake 11 conta le valutazioni su 300 giri di loop (<= 4); test HA `test_control_revalidates...` ora asserisce lo stesso. |
+| **I-4** test HA | Corretto, **non eseguito** | Fixture `service_calls` ora registra gli eventi `call_service` con un listener `@callback` (nessun `patch` su `ServiceRegistry`, che ha `__slots__`); errore atteso del test opzioni: `ho_invalid_domain` per un climate, `ho_duplicate_binding` per un consenso usato come proprietario, `unknown_entity` per un'entità assente, con confronto esatto sugli errori; asserzioni deboli (`seen`) sostituite dal controllo sugli eventi registrati. I test HA restano scritti e mai eseguiti: possono contenere errori. |
+| **I-5** traduzioni regredite | Chiuso | `en.json` e `it.json` riportati al blob di `18b72f0` (SHA-256 `5b4febb4...` e `2162e5bb...`, identici a quelli dell'esito §6; scritti con uno script che legge `git show 18b72f0:<path>`); questo giro non ha richiesto modifiche di traduzione nuove. Parità delle chiavi en/it verificata (126 chiavi `heating_orchestration`/`ho_*` per lingua, differenza vuota), JSON validi. |
+| **M-1** servizio annullato per `none` | Chiuso | Il task di invio è cancellato solo per sostituzione con il modo **opposto** e per perdita di proprietà; con `none` il servizio finisce e l'esito è ignorato per `send_id`. Scenario fake 22. |
+| **M-2** tolleranza dopo i proprietari `off` | Documentato | Non modificato: va nel runbook una pausa di almeno una valutazione (>= 15 s) dopo lo spegnimento dell'ultimo controller esterno. |
+| **M-3** `pending` prima del lancio | Chiuso | `control_status` è `pending` solo con un record attivo (o un backoff in corso); per un invio imminente resta `ready`/`settling` finché `start_send` crea il record. Test aggiornato. |
+| **M-4** `SEND_STALE_AFTER_S` | Chiuso | 40 s (5 s di salvataggio + 30 s di servizio + 5 s di margine). |
+| **M-5** `unconfirmed` mai confermato dopo il riavvio | Documentato | Scelta voluta: resta `unconfirmed` finché non parte un nuovo comando, anche se il master è già nel modo richiesto. |
+| M-6, M-7, M-8 | Documentati | M-6 (assestamento non riarmato): accettato, rischio basso come nella review. M-7 (rollback): un file `Store` v2 letto da M2-A dà `store_load_failed` e riparte da una nuova osservazione (ancore del ciclo perse, pausa di 600 s): nel runbook. M-8: sorgenti HA 2026.11.2 non disponibili. |
+
+### Verifiche rieseguite (Windows, venv M1, nessun HA)
+
+- `python -m pytest -q --noconftest --import-mode=importlib -p no:cacheprovider tests/test_heating_boiler_command.py tests/test_heating_boiler_collector.py tests/test_heating_boiler_policy.py tests/test_heating_pdc_policy.py tests/test_heating_pdc_transaction.py tests/test_heating_pdc_provenance.py` -> **933 passed, 1 skipped** (comando 109, collector 205, policy 143 + 1 skip, PDC invariati).
+- `m2b/fake_ha_scenarios.py` -> **22/22** (19 precedenti + 3 nuovi).
+- Black 24.10 `--check --line-length 180` sui miei file: conformi (manager, comando, test, `m2b`). `py_compile` e `json.tool` ok.
+- `heating_boiler_policy.py` invariato (`edf7e900...c27945b`).
+
+### Nuovi hash (SHA-256)
+
+| File | SHA-256 |
+| --- | --- |
+| heating_boiler_command.py | 8ae7ae0647f68f60d17103acc4d6c83e28248cf3ea50af75565c970889d3b572 |
+| feature_heating_orchestration_manager.py | 6c5c71888d1360dd58e28be2c919eb87ac66fcc16c9f1bc6dace40cb9627242c |
+| translations/en.json | 5b4febb47b608406fcdc832dab41d4ab8ca56fcb20de52718c01b98934365eb1 |
+| translations/it.json | 2162e5bb23093a1d0b8db51d01af97f9fc5a22503d9c21cc0a8cad156987d9cf |
+| tests/test_heating_boiler_command.py | 72de82bdfa825335f31c8effa513652a8ebebf5f6107a06e0bc3001c1b3635be |
+| tests/test_heating_orchestration.py (HA, non eseguito) | 560938407643c5099ebd51cb3773c8d1325c22c56c737fb703f4670a1567aafd |
+| m2b/fake_ha_scenarios.py | 106f8678438ad27087a974f30495e753ab341b817f6fc1a591732fe87cad346e |
+
+Gli altri file di §6 non sono cambiati. Limite nuovo: la memoria del budget non sopravvive al riavvio; un guasto del master con riavvii ripetuti di HA può quindi ripartire con 4 invii a ogni avvio.

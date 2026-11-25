@@ -44,6 +44,30 @@ L'integrazione runtime PDC (manager, config, sensori PDC) toccherà file di A: a
 - Subagent: disponibili in questa sessione.
 - Home Assistant: connettore MCP attivo dal pomeriggio del 24/11. Le scritture sull'impianto restano vietate ai worker: oggi solo il Worker D legge, in sola lettura. Qualsiasi scrittura passa dal coordinatore, con backup e ripristino preparati prima.
 - Divario di versione: i test girano su HA 2026.10.4 (versione fissata dal repo), l'impianto è su **2026.11.2**. Un secondo ambiente `…\vtherm-ha-test\venv-ha2611` (HA 2026.11.2) è in preparazione per la prova di compatibilità prima della distribuzione.
+- **25/11 mattina — nuovo mandato di Carlo: prima versione installabile in observe.** Regole:
+  - **un solo worker alla volta**, review comprese;
+  - nessuna campagna di test non necessaria;
+  - niente HA in esecuzione né impianto; nessuna modifica Oikos;
+  - control mai attivato automaticamente; percorsi incompleti resi inaccessibili.
+
+  Stato attuale:
+  - **W2** (PDC) fermato dal coordinatore per rispettare la regola. Aveva scritto collector, runtime e manager PDC e i relativi test, con le mutazioni M4/M5 runtime a 45/45; erano ancora da fare parità, test finali ed esito. Il lavoro è non committato su disco.
+  - **W1** attivo, sulle correzioni della review M2-B e sulla riconciliazione delle traduzioni.
+
+  Sequenza prevista:
+  1. W1;
+  2. W2 su PDC observe con i percorsi di control bloccati;
+  3. integrazione PDC observe nei file condivisi;
+  4. review finale di compatibilità e assenza di effetti;
+  5. pacchetto e istruzioni.
+- **Review M2-B** (`M2-B-REVIEW.md`): 0 bloccanti, 5 importanti, 8 minori; nessun percorso di comando senza proprietà. Importanti:
+  - richiesta esaurita che non si sblocca;
+  - flapping che azzera il budget dei tentativi (11 `heat` in 20 s);
+  - rivalutazione a ritardo zero;
+  - test HA scritti con errori sicuri;
+  - traduzioni sovrascritte nel working tree da W2 con una versione intermedia.
+  Il ripristino con `git restore` è stato negato dal controllo automatico dei permessi: la riconciliazione la fa W1 con modifiche normali. W1 è stato ripreso per correggere I-1…I-5 e i minori; W2 è stato avvisato di non toccare i file condivisi.
+- **W1 consegnato (M2-B)**, vedi `M2-B-ESITO.md`. Test puri della caldaia ricontrollati dal coordinatore: 456 passed, 1 skipped. M1 invariato. Commit `18b72f0` pushato. Review indipendente di M2-B in corso; W2 (PDC) ancora attivo.
 - **24/11 sera — nuovo mandato di Carlo**: completare il fork in locale (caldaia, PDC, coordinamento, manuale e provenienza, sospensione generale, contratti per le card).
   - Vincoli: niente HA in esecuzione né test HA; nessun intervento sull'impianto; nessuna modifica alle card Oikos. Carlo ha poi autorizzato **commit e push periodici** sul branch `codex/avatto-trv-pilot` del fork (pubblico, `Carlo0201/versatile_thermostat`).
   - Checkpoint `c16fd0a` (M1, M2-A, M3–M5, piano) committato e pushato. Gli script `plans/*.ps1` restano esclusi.

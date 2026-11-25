@@ -331,9 +331,18 @@ async def s11_revalidation_abandons_a_stale_action():
             return dataclasses.replace(decision, action="none", reason="no_demand")
         return decision
 
-    mod.evaluate_boiler = changing
+    counter = []
+
+    def counting(*a, **k):
+        counter.append(1)
+        return changing(*a, **k)
+
+    mod.evaluate_boiler = counting
     try:
         await ctx.world.advance(30)
+        before = len(counter)
+        await h.run_loop(300)  # a hot loop would evaluate at every turn (review M2-B I-3)
+        assert len(counter) - before <= 4, len(counter) - before
     finally:
         mod.evaluate_boiler = real
     assert calls(ctx) == [] and attrs(ctx)["command_attempts"] == 0 and ctx.mgr.command_record is None
@@ -476,6 +485,76 @@ async def s19_stop_cancels_timers_and_ignores_late_callbacks():
     live = [t for t in ctx.hass.point_timers if t[2]] + [t for t in ctx.hass.interval_timers if t[2]]
     assert live == [], live
     assert ctx.hass.state_listeners == []
+
+
+@scenario
+async def s20_exhausted_off_is_released_when_the_master_goes_unavailable():
+    ctx = await make(off_world())
+
+    async def boom(call):
+        raise RuntimeError("boom")
+
+    ctx.hass.services.handler = boom
+    await ctx.world.advance(30)
+    for wait in (61, 121, 301):
+        await ctx.world.advance(wait)
+    assert len(calls(ctx)) == 4 and attrs(ctx)["control_status"] == "command_failed", (len(calls(ctx)), attrs(ctx)["control_status"])
+    await ctx.world.advance(600)
+    assert len(calls(ctx)) == 4
+    ctx.hass.states.async_set(MASTER, "unavailable")
+    await h.run_loop()
+    await ctx.world.advance(40)
+    ctx.hass.states.async_set(MASTER, "heat", MODES)
+    await h.run_loop()
+    assert len(calls(ctx)) == 4
+    await ctx.world.advance(61)
+    assert len(calls(ctx)) == 5, len(calls(ctx))  # a fresh budget after the short wait
+    await ctx.mgr.async_stop()
+
+
+@scenario
+async def s21_flapping_action_keeps_the_budget_per_mode():
+    ctx = await make(off_world())
+
+    async def boom(call):
+        raise RuntimeError("boom")
+
+    ctx.hass.services.handler = boom
+    await ctx.world.advance(30)
+    for index in range(100):  # the valve count flaps: off is wanted, then nothing, every 2 s
+        valid = index % 2 == 0
+        ids = [] if valid else ["climate.v_bed", "climate.v_liv_1", "climate.v_liv_2"]
+        ctx.hass.states.async_set(COUNT, str(len(ids)), {"active_device_ids": ids})
+        await ctx.world.advance(2)
+    assert len(calls(ctx)) <= 4, len(calls(ctx))
+    await ctx.mgr.async_stop()
+
+
+@scenario
+async def s22_a_service_in_flight_is_not_cancelled_when_the_action_becomes_none():
+    ctx = await make(off_world())
+    gate = asyncio.Event()
+    outcome = []
+
+    async def slow(call):
+        try:
+            await gate.wait()
+            outcome.append("done")
+        except asyncio.CancelledError:
+            outcome.append("cancelled")
+            raise
+
+    ctx.hass.services.handler = slow
+    await ctx.world.advance(30)
+    assert ctx.mgr.command_record.status == "sending"
+    ids = ["climate.v_bed", "climate.v_liv_1", "climate.v_liv_2"]
+    ctx.hass.states.async_set(COUNT, "3", {"active_device_ids": ids})  # radiators valid again: action none
+    await h.run_loop(20)
+    assert ctx.mgr.command_record.status == "superseded" and outcome == []
+    gate.set()
+    await h.run_loop(20)
+    assert outcome == ["done"] and ctx.mgr.command_record.status == "superseded"
+    await ctx.mgr.async_stop()
 
 
 async def main():
