@@ -37,7 +37,12 @@ SECTION: dict[str, Any] = {
     "pilot_ready_entity_id": "binary_sensor.pilot_ready",
     "consent_entity_ids": ["input_boolean.consent_a"],
     "rooms": [
-        {"room_key": "bedroom", "climate_entity_id": "climate.vt_bedroom", "pilot_filter": False, "pdc": {"split_entity_id": "climate.bedroom_split", "session_entity_id": "input_boolean.bedroom_pdc"}},
+        {
+            "room_key": "bedroom",
+            "climate_entity_id": "climate.vt_bedroom",
+            "pilot_filter": False,
+            "pdc": {"split_entity_id": "climate.bedroom_split", "session_entity_id": "input_boolean.bedroom_pdc"},
+        },
         {"room_key": "living", "climate_entity_id": "climate.vt_living", "pilot_filter": False},
         {"room_key": "study", "climate_entity_id": "climate.vt_study", "pilot_filter": False},
     ],
@@ -94,7 +99,19 @@ def base_states() -> dict[str, Any]:
     }
 
 
-def pdc_attributes(*, mode: str = "control", owner: str | None = "controller", managed: bool = False, phase: str = "idle", split_mode: str = "off", split_action: str = "idle", conditions: list[dict[str, Any]] | None = None, diagnostic: str = "idle|1100|120", failure: str | None = None, started_at: float | None = None) -> dict[str, Any]:
+def pdc_attributes(
+    *,
+    mode: str = "control",
+    owner: str | None = "controller",
+    managed: bool = False,
+    phase: str = "idle",
+    split_mode: str = "off",
+    split_action: str = "idle",
+    conditions: list[dict[str, Any]] | None = None,
+    diagnostic: str = "idle|1100|120",
+    failure: str | None = None,
+    started_at: float | None = None,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "room_key": "bedroom",
@@ -109,7 +126,13 @@ def pdc_attributes(*, mode: str = "control", owner: str | None = "controller", m
         "diagnostic_state": diagnostic,
         "power_limit_w": 1100,
         "deadline": NOW + 90.0 if diagnostic.startswith("ready") else None,
-        "transaction": {"id": 3, "phase": phase, "started_at": started_at if started_at is not None else (NOW - 20.0 if phase != "idle" else None), "deadline": NOW + 40.0 if phase != "idle" else None, "failure": failure},
+        "transaction": {
+            "id": 3,
+            "phase": phase,
+            "started_at": started_at if started_at is not None else (NOW - 20.0 if phase != "idle" else None),
+            "deadline": NOW + 40.0 if phase != "idle" else None,
+            "failure": failure,
+        },
         "override": {"active": False, "until": None, "source": None, "provenance": "none"},
         "conditions": conditions or [],
     }
@@ -125,22 +148,48 @@ def build_scenarios(statuses: dict[str, Any] | None = None) -> dict[str, Any]:
     config = collector.parse_orchestration_config(SECTION)
     scenarios: list[dict[str, Any]] = []
 
-    def add(name: str, room: str = "living", changes: dict[str, Any] | None = None, *, pdc: dict[str, Any] | None = None, pdc_state: str = "idle", cycle: Any = None, controller: dict[str, Any] | None = None, unit: str = "°C") -> None:
+    def add(
+        name: str,
+        room: str = "living",
+        changes: dict[str, Any] | None = None,
+        *,
+        pdc: dict[str, Any] | None = None,
+        pdc_state: str = "idle",
+        cycle: Any = None,
+        controller: dict[str, Any] | None = None,
+        unit: str = "°C",
+    ) -> None:
         states = base_states()
         states.update(copy.deepcopy(changes or {}))
         collection = collector.collect_boiler_inputs(states, config, NOW, temperature_unit=unit)
         snapshot = policy.BoilerSnapshot(
-            ok=bool(collection.raw["ok"]), master=collection.raw["master"], count=int(collection.raw["count"]),
+            ok=bool(collection.raw["ok"]),
+            master=collection.raw["master"],
+            count=int(collection.raw["count"]),
             rooms=tuple(policy.QualifiedBoilerRoom(slug=r["slug"], target=r["target"], gap=r["gap"], pilot_ok=r["pilot_ok"]) for r in collection.raw["rooms"]),
-            manual=collection.raw["manual"], pilot=collection.raw["pilot"], pilot_ready=collection.raw["pilot_ready"], consent=collection.raw["consent"],
+            manual=collection.raw["manual"],
+            pilot=collection.raw["pilot"],
+            pilot_ready=collection.raw["pilot_ready"],
+            consent=collection.raw["consent"],
         )
         decision = policy.evaluate_boiler(snapshot, cycle, NOW)
         view_controller = controller or {"mode": "observe", "owner": "observer", "state": decision.reason}
-        diagnostics = collector.build_boiler_diagnostics(collection, decision, mode=view_controller["mode"], owner=view_controller["owner"], generation=5, cycle_origin="new_observation")
+        diagnostics = collector.build_boiler_diagnostics(
+            collection, decision, mode=view_controller["mode"], owner=view_controller["owner"], generation=5, cycle_origin="new_observation"
+        )
         if statuses is not None:
             room_binding = next(item for item in config.rooms if item.room_key == room)
             view = None if pdc is None else rs.PdcView(pdc_state, pdc)
-            statuses[name] = rs.evaluate_room_status(room_binding, states, collection, decision, view, rs.ControllerView(**(controller or {"mode": "observe", "owner": "observer", "state": decision.reason})), NOW, active_count_entity_id=config.active_count_entity_id)
+            statuses[name] = rs.evaluate_room_status(
+                room_binding,
+                states,
+                collection,
+                decision,
+                view,
+                rs.ControllerView(**(controller or {"mode": "observe", "owner": "observer", "state": decision.reason})),
+                NOW,
+                active_count_entity_id=config.active_count_entity_id,
+            )
         scenarios.append(
             {
                 "name": name,
@@ -155,7 +204,10 @@ def build_scenarios(statuses: dict[str, Any] | None = None) -> dict[str, Any]:
         )
 
     SESSION_ON = {"input_boolean.bedroom_pdc": {"state": "on"}}
-    solo = {"climate.vt_bedroom": vtherm(["climate.v_bed"], state="off", demand=False, hvac_action="idle"), COUNT: {"state": "2", "attributes": {"active_device_ids": ["climate.v_liv_1", "climate.v_liv_2"]}}}
+    solo = {
+        "climate.vt_bedroom": vtherm(["climate.v_bed"], state="off", demand=False, hvac_action="idle"),
+        COUNT: {"state": "2", "attributes": {"active_device_ids": ["climate.v_liv_1", "climate.v_liv_2"]}},
+    }
     cool = policy.BoilerCycle(mode="off", off_since=NOW - 100.0)
     old = policy.BoilerCycle(mode="off", off_since=NOW - 4000.0, normal_since=NOW - 90.0)
     single = policy.BoilerCycle(mode="off", off_since=NOW - 4000.0, single=policy.BoilerSingleWait("living", 20.0, NOW - 300.0))
@@ -181,17 +233,63 @@ def build_scenarios(statuses: dict[str, Any] | None = None) -> dict[str, Any]:
     add("demand without attribute heating", changes=L(demand=None))
     add("demand without attribute idle", changes=L(demand=None, hvac_action="idle"))
     add("demand without attribute idle below", changes=L(demand=None, hvac_action="idle", current=17.0))
-    add("window open", changes={"binary_sensor.window_default": {"state": "on"}, **L(window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False})})
+    add(
+        "window open",
+        changes={
+            "binary_sensor.window_default": {"state": "on"},
+            **L(window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False}),
+        },
+    )
     add("window open pending", changes={"binary_sensor.window_default": {"state": "on"}})
     add("window unknown", changes={"binary_sensor.window_default": {"state": "unavailable"}})
-    add("window bypass", changes={"binary_sensor.window_default": {"state": "on"}, **L(window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "off", "is_window_bypass": True})})
-    add("window suspended off", changes=L(state="off", demand=False, hvac_action="off", specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "hvac_off_reason": "hvac_off_window_detection", "inhibition": {"inhibited": False}}))
+    add(
+        "window bypass",
+        changes={
+            "binary_sensor.window_default": {"state": "on"},
+            **L(window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "off", "is_window_bypass": True}),
+        },
+    )
+    add(
+        "window suspended off",
+        changes=L(
+            state="off",
+            demand=False,
+            hvac_action="off",
+            specific_states={
+                "is_initialized": True,
+                "last_temperature_datetime": _iso(NOW - 60),
+                "hvac_off_reason": "hvac_off_window_detection",
+                "inhibition": {"inhibited": False},
+            },
+        ),
+    )
     add("safety", changes=L(safety_manager={"safety_state": "on"}))
     add("power", changes=L(power_manager={"overpowering_state": "on"}))
     add("central mode off", changes={CENTRAL: {"state": "Off"}})
     add("central mode unknown", changes={CENTRAL: {"state": "unknown"}})
-    add("central off reason", changes=L(state="off", demand=False, hvac_action="off", specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "hvac_off_reason": "hvac_off_central_mode", "inhibition": {"inhibited": False}}))
-    add("auto pause", changes=L(state="off", demand=False, hvac_action="off", specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "hvac_off_reason": "hvac_off_auto_start_stop", "inhibition": {"inhibited": False}}))
+    add(
+        "central off reason",
+        changes=L(
+            state="off",
+            demand=False,
+            hvac_action="off",
+            specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "hvac_off_reason": "hvac_off_central_mode", "inhibition": {"inhibited": False}},
+        ),
+    )
+    add(
+        "auto pause",
+        changes=L(
+            state="off",
+            demand=False,
+            hvac_action="off",
+            specific_states={
+                "is_initialized": True,
+                "last_temperature_datetime": _iso(NOW - 60),
+                "hvac_off_reason": "hvac_off_auto_start_stop",
+                "inhibition": {"inhibited": False},
+            },
+        ),
+    )
     add("room off", changes=L(state="off", demand=False, hvac_action="off"))
     add("room off no demand attribute", changes=L(state="off", demand=None, hvac_action="off"))
     add("other mode", changes=L(state="cool", demand=False, hvac_action="idle"))
@@ -203,7 +301,10 @@ def build_scenarios(statuses: dict[str, Any] | None = None) -> dict[str, Any]:
     add("temperature future", changes=L(age=-30.0))
     add("temperature missing", changes=L(current=None))
     add("temperature datetime missing", changes=L(specific_states={"is_initialized": True, "inhibition": {"inhibited": False}}))
-    add("no active valve", changes={"climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}, "climate.v_liv_2": {"state": "heat", "attributes": {"hvac_action": "idle"}}})
+    add(
+        "no active valve",
+        changes={"climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}, "climate.v_liv_2": {"state": "heat", "attributes": {"hvac_action": "idle"}}},
+    )
     add("valve unreadable", changes={"climate.v_liv_1": {"state": "unavailable", "attributes": {}}, "climate.v_liv_2": {"state": "unavailable", "attributes": {}}})
     add("fahrenheit", unit="°F")
     add("count invalid", changes={COUNT: {"state": "9", "attributes": {"active_device_ids": ["climate.v_liv_1"]}}})
@@ -211,28 +312,94 @@ def build_scenarios(statuses: dict[str, Any] | None = None) -> dict[str, Any]:
     add("control owner", controller={"mode": "control", "owner": "controller", "state": "heat"})
     add("control external owner", controller={"mode": "control", "owner": "observer", "state": "off"})
 
-    ready = [pdc_condition("automatic", actual="on", expected="on"), pdc_condition("override", actual="off", expected="off"), pdc_condition("central_mode", actual="Auto", expected="Auto|Cool only"), pdc_condition("split_free", actual="off", expected="off")]
+    ready = [
+        pdc_condition("automatic", actual="on", expected="on"),
+        pdc_condition("override", actual="off", expected="off"),
+        pdc_condition("central_mode", actual="Auto", expected="Auto|Cool only"),
+        pdc_condition("split_free", actual="off", expected="off"),
+    ]
     blocked = lambda cid, code: [*(c for c in ready if c["id"] != cid), pdc_condition(cid, "fail", code)]  # noqa: E731
     add("pdc idle ready", "bedroom", pdc=pdc_attributes(conditions=ready, diagnostic="ready|1100|120"), pdc_state="ready")
-    add("pdc observe measured heating", "bedroom", pdc=pdc_attributes(mode="observe", split_mode="heat", split_action="heating", conditions=ready, diagnostic="power_high|1100|120"))
+    add(
+        "pdc observe measured heating", "bedroom", pdc=pdc_attributes(mode="observe", split_mode="heat", split_action="heating", conditions=ready, diagnostic="power_high|1100|120")
+    )
     add("pdc observe blocked power", "bedroom", pdc=pdc_attributes(mode="observe", conditions=blocked("power_capacity", "power_high"), diagnostic="power_high|1100|120"))
-    add("pdc transition waiting heat", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="waiting_heat", split_mode="heat", conditions=ready), pdc_state="start")
+    add(
+        "pdc transition waiting heat", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="waiting_heat", split_mode="heat", conditions=ready), pdc_state="start"
+    )
     add("pdc transition waiting radiator", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="waiting_radiator", conditions=ready), pdc_state="start")
     add("pdc transition waiting target", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="waiting_target", conditions=ready), pdc_state="start")
     add("pdc returning", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="returning", conditions=ready), pdc_state="stop")
-    add("pdc transition window", "bedroom", changes={**SESSION_ON, "binary_sensor.window_default": {"state": "on"}, "climate.vt_bedroom": vtherm(["climate.v_bed"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False})}, pdc=pdc_attributes(managed=True, phase="waiting_heat", conditions=ready), pdc_state="start")
-    add("pdc running heating", "bedroom", changes={"input_boolean.bedroom_pdc": {"state": "on"}, "climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "heating"}}}, pdc=pdc_attributes(managed=True, phase="running", split_mode="heat", split_action="heating", conditions=ready), pdc_state="run")
-    add("pdc running selected", "bedroom", changes={"input_boolean.bedroom_pdc": {"state": "on"}, "climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "idle"}}}, pdc=pdc_attributes(managed=True, phase="running", split_mode="heat", split_action="idle", conditions=ready), pdc_state="run")
-    add("pdc running split not heat", "bedroom", changes={"input_boolean.bedroom_pdc": {"state": "on"}}, pdc=pdc_attributes(managed=True, phase="running", split_mode="off", split_action="idle", conditions=ready), pdc_state="run")
-    add("pdc failure active", "bedroom", changes=SESSION_ON, pdc=pdc_attributes(managed=True, phase="return_unconfirmed", failure="return_unconfirmed", conditions=ready), pdc_state="stop")
+    add(
+        "pdc transition window",
+        "bedroom",
+        changes={
+            **SESSION_ON,
+            "binary_sensor.window_default": {"state": "on"},
+            "climate.vt_bedroom": vtherm(
+                ["climate.v_bed"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False}
+            ),
+        },
+        pdc=pdc_attributes(managed=True, phase="waiting_heat", conditions=ready),
+        pdc_state="start",
+    )
+    add(
+        "pdc running heating",
+        "bedroom",
+        changes={"input_boolean.bedroom_pdc": {"state": "on"}, "climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "heating"}}},
+        pdc=pdc_attributes(managed=True, phase="running", split_mode="heat", split_action="heating", conditions=ready),
+        pdc_state="run",
+    )
+    add(
+        "pdc running selected",
+        "bedroom",
+        changes={"input_boolean.bedroom_pdc": {"state": "on"}, "climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "idle"}}},
+        pdc=pdc_attributes(managed=True, phase="running", split_mode="heat", split_action="idle", conditions=ready),
+        pdc_state="run",
+    )
+    add(
+        "pdc running split not heat",
+        "bedroom",
+        changes={"input_boolean.bedroom_pdc": {"state": "on"}},
+        pdc=pdc_attributes(managed=True, phase="running", split_mode="off", split_action="idle", conditions=ready),
+        pdc_state="run",
+    )
+    add(
+        "pdc failure active",
+        "bedroom",
+        changes=SESSION_ON,
+        pdc=pdc_attributes(managed=True, phase="return_unconfirmed", failure="return_unconfirmed", conditions=ready),
+        pdc_state="stop",
+    )
     add("pdc failure resolved", "bedroom", pdc=pdc_attributes(phase="idle", failure="split_unconfirmed", started_at=NOW - 500.0, conditions=ready))
-    for cid, code in (("window_closed", "window"), ("temperature", "temperature_missing"), ("power_capacity", "power_missing"), ("other_pdc", "other_pdc"), ("split_free", "split_busy"), ("cooldown", "cooldown"), ("schedule", "schedule_change"), ("preset", "preset"), ("automatic", "automatic_off"), ("override", "manual_override")):
+    for cid, code in (
+        ("window_closed", "window"),
+        ("temperature", "temperature_missing"),
+        ("power_capacity", "power_missing"),
+        ("other_pdc", "other_pdc"),
+        ("split_free", "split_busy"),
+        ("cooldown", "cooldown"),
+        ("schedule", "schedule_change"),
+        ("preset", "preset"),
+        ("automatic", "automatic_off"),
+        ("override", "manual_override"),
+    ):
         add(f"pdc blocked {code}", "bedroom", pdc=pdc_attributes(conditions=blocked(cid, code), diagnostic=f"{code}|1100|120"))
-    add("pdc blocked with boiler heating", "bedroom", changes={MASTER: {"state": "heat"}}, pdc=pdc_attributes(conditions=blocked("power_capacity", "power_high"), diagnostic="power_high|1100|120"))
+    add(
+        "pdc blocked with boiler heating",
+        "bedroom",
+        changes={MASTER: {"state": "heat"}},
+        pdc=pdc_attributes(conditions=blocked("power_capacity", "power_high"), diagnostic="power_high|1100|120"),
+    )
     add("pdc data missing", "bedroom", pdc=pdc_attributes(conditions=blocked("temperature", "data_missing"), diagnostic="data_missing|1100|120"))
     add("pdc unavailable", "bedroom")
     add("pdc session on radiator excluded", "bedroom", changes={"input_boolean.bedroom_pdc": {"state": "on"}}, pdc=pdc_attributes(conditions=ready))
-    add("pdc split not off radiator excluded", "bedroom", changes={"climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "idle"}}}, pdc=pdc_attributes(conditions=ready))
+    add(
+        "pdc split not off radiator excluded",
+        "bedroom",
+        changes={"climate.bedroom_split": {"state": "heat", "attributes": {"hvac_action": "idle"}}},
+        pdc=pdc_attributes(conditions=ready),
+    )
 
     return {
         "now": NOW,

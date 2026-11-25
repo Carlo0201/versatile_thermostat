@@ -43,12 +43,12 @@ Comando (da `CLAUDE-STATUS.md`): `python -m pytest -q --noconftest --import-mode
 
 | Misura | Prima | Dopo |
 | --- | --- | --- |
-| Suite pura, 14 file (collettore, M1, comando, release, PDC) | 1165 passati | @@AFTER_OLD@@ (stessi 14 file) |
-| Nuovi test (motore, parità, manager) | — | @@AFTER_NEW@@ |
+| Suite pura, 14 file (collettore, M1, comando, release, PDC) | 1165 passati | 1165 passati (stessi 14 file, invariati) |
+| Nuovi test (motore, parità, manager) | — | +163 passati (motore 81, parità 81, manager 1; 1 saltato = aggiornamento delle differenze, solo con `PARITY_UPDATE`); totale 17 file: 1328 passati, 1 saltato |
 | Scenari HA finto caldaia (`m2b/fake_ha_scenarios.py`) | 25/25 | 25/25 |
 | Scenari HA finto PDC (`pdc/fake_ha_pdc.py`) | 45 verifiche, 0 fallite | 45 verifiche, 0 fallite |
 | Scenari HA finto stanze (nuovo) | — | 11 scenari, 33 verifiche, 0 fallite |
-| Black 24 (`--line-length 180`) sui file nuovi | — | pulito (dopo formattazione) |
+| Black 24 (`--line-length 180`) sui file nuovi | — | pulito |
 
 Il numero «1063 passati, 1 saltato» di `CLAUDE-STATUS.md` riguarda un insieme di file diverso da quello che ho eseguito; il confronto vale tra «prima» e «dopo» sugli stessi file. Non ho eseguito: `tests/test_heating_orchestration.py`, `tests/test_heating_pdc_ha_integration.py`, `tests/test_heating_failure_detection.py`, `tests/test_room_override.py`, `tests/test_room_journal.py` (richiedono HA o fixture HA) e la suite completa.
 

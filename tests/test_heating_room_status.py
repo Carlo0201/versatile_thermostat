@@ -55,7 +55,12 @@ SECTION: dict[str, Any] = {
     "pilot_ready_entity_id": "binary_sensor.pilot_ready",
     "consent_entity_ids": ["input_boolean.consent_a"],
     "rooms": [
-        {"room_key": "bedroom", "climate_entity_id": "climate.vt_bedroom", "pilot_filter": False, "pdc": {"split_entity_id": "climate.bedroom_split", "session_entity_id": "input_boolean.bedroom_pdc"}},
+        {
+            "room_key": "bedroom",
+            "climate_entity_id": "climate.vt_bedroom",
+            "pilot_filter": False,
+            "pdc": {"split_entity_id": "climate.bedroom_split", "session_entity_id": "input_boolean.bedroom_pdc"},
+        },
         {"room_key": "living", "climate_entity_id": "climate.vt_living", "pilot_filter": False},
         {"room_key": "study", "climate_entity_id": "climate.vt_study", "pilot_filter": False},
     ],
@@ -68,7 +73,9 @@ def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, timezone.utc).isoformat()
 
 
-def vtherm(valves: list[str], *, age: float = 60.0, current: Any = 18.0, target: Any = 20.0, state: str = "heat", demand: Any = True, now: float = NOW, **over: Any) -> dict[str, Any]:
+def vtherm(
+    valves: list[str], *, age: float = 60.0, current: Any = 18.0, target: Any = 20.0, state: str = "heat", demand: Any = True, now: float = NOW, **over: Any
+) -> dict[str, Any]:
     attributes: dict[str, Any] = {
         "is_ready": True,
         "hvac_action": "heating",
@@ -128,7 +135,11 @@ OBSERVE = rs.ControllerView("observe", "observer", "no_demand")
 def run(states: dict[str, Any], room_key: str = "living", *, pdc: Any = None, controller: Any = OBSERVE, now: float = NOW, **kwargs: Any):
     collection = collector.collect_boiler_inputs(states, CONFIG, now, local_tz=LOCAL_TZ, **kwargs)
     decision = policy.evaluate_boiler(policy_snapshot(collection), None, now)
-    return rs.evaluate_room_status(ROOMS[room_key], states, collection, decision, pdc, controller, now, local_tz=LOCAL_TZ, active_count_entity_id=CONFIG.active_count_entity_id), collection, decision
+    return (
+        rs.evaluate_room_status(ROOMS[room_key], states, collection, decision, pdc, controller, now, local_tz=LOCAL_TZ, active_count_entity_id=CONFIG.active_count_entity_id),
+        collection,
+        decision,
+    )
 
 
 def cond(status, condition_id: str):
@@ -144,7 +155,20 @@ def cond(status, condition_id: str):
 
 def test_healthy_room_has_every_ready_and_demand_condition_passing():
     status, collection, _ = run(snapshot())
-    for condition_id in ("room_available", "hvac_enabled", "room_ready", "initialized", "central_mode", "window", "inhibition", "safety", "overpowering", "temperature", "room_demand", "valve_active"):
+    for condition_id in (
+        "room_available",
+        "hvac_enabled",
+        "room_ready",
+        "initialized",
+        "central_mode",
+        "window",
+        "inhibition",
+        "safety",
+        "overpowering",
+        "temperature",
+        "room_demand",
+        "valve_active",
+    ):
         assert cond(status, condition_id).status == "pass", condition_id
     assert not any(item.id == "pdc_released" for item in status.conditions)
     assert [stage.key for stage in status.stages] == ["ready", "demand", "boiler"]
@@ -165,14 +189,60 @@ CASES = [
     ("unavailable", {"climate.vt_living": {"state": "unavailable", "attributes": {}}}, "living", "room_available", "fail", "entity_unavailable"),
     ("hvac off", {"climate.vt_living": vtherm(["climate.v_liv_1"], state="off")}, "living", "hvac_enabled", "fail", "hvac_not_heating"),
     ("not ready", {"climate.vt_living": vtherm(["climate.v_liv_1"], is_ready=False)}, "living", "room_ready", "fail", "not_ready"),
-    ("not initialized", {"climate.vt_living": vtherm(["climate.v_liv_1"], specific_states={"is_initialized": False, "last_temperature_datetime": _iso(NOW - 60), "inhibition": {"inhibited": False}})}, "living", "initialized", "fail", "not_initialized"),
+    (
+        "not initialized",
+        {
+            "climate.vt_living": vtherm(
+                ["climate.v_liv_1"], specific_states={"is_initialized": False, "last_temperature_datetime": _iso(NOW - 60), "inhibition": {"inhibited": False}}
+            )
+        },
+        "living",
+        "initialized",
+        "fail",
+        "not_initialized",
+    ),
     ("central off", {CENTRAL: {"state": "Off"}}, "living", "central_mode", "fail", "central_off"),
     ("central unknown", {CENTRAL: {"state": "unknown"}}, "living", "central_mode", "unknown", "central_mode_unknown"),
-    ("window open", {"binary_sensor.window_default": {"state": "on"}, "climate.vt_living": vtherm(["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False})}, "living", "window", "fail", "window_open"),
+    (
+        "window open",
+        {
+            "binary_sensor.window_default": {"state": "on"},
+            "climate.vt_living": vtherm(
+                ["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False}
+            ),
+        },
+        "living",
+        "window",
+        "fail",
+        "window_open",
+    ),
     ("window pending", {"binary_sensor.window_default": {"state": "on"}}, "living", "window", "wait", "window_pending"),
     ("window unknown", {"binary_sensor.window_default": {"state": "unavailable"}}, "living", "window", "unknown", "window_unknown"),
-    ("window bypass", {"binary_sensor.window_default": {"state": "on"}, "climate.vt_living": vtherm(["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "off", "is_window_bypass": True})}, "living", "window", "pass", None),
-    ("inhibited", {"climate.vt_living": vtherm(["climate.v_liv_1"], specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "inhibition": {"inhibited": True}})}, "living", "inhibition", "fail", "inhibited"),
+    (
+        "window bypass",
+        {
+            "binary_sensor.window_default": {"state": "on"},
+            "climate.vt_living": vtherm(
+                ["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "off", "is_window_bypass": True}
+            ),
+        },
+        "living",
+        "window",
+        "pass",
+        None,
+    ),
+    (
+        "inhibited",
+        {
+            "climate.vt_living": vtherm(
+                ["climate.v_liv_1"], specific_states={"is_initialized": True, "last_temperature_datetime": _iso(NOW - 60), "inhibition": {"inhibited": True}}
+            )
+        },
+        "living",
+        "inhibition",
+        "fail",
+        "inhibited",
+    ),
     ("safety", {"climate.vt_living": vtherm(["climate.v_liv_1"], safety_manager={"safety_state": "on"})}, "living", "safety", "fail", "safety"),
     ("overpowering", {"climate.vt_living": vtherm(["climate.v_liv_1"], power_manager={"overpowering_state": "on"})}, "living", "overpowering", "fail", "overpowering"),
     ("temperature stale", {"climate.vt_living": vtherm(["climate.v_liv_1"], age=4000.0)}, "living", "temperature", "fail", "temperature_stale"),
@@ -182,9 +252,30 @@ CASES = [
     ("demand continuing", {"climate.vt_living": vtherm(["climate.v_liv_1"], current=19.8)}, "living", "room_demand", "pass", "continuing_demand"),
     ("demand fallback to action", {"climate.vt_living": vtherm(["climate.v_liv_1"], demand=None)}, "living", "room_demand", "pass", "trv_request"),
     ("demand unknown", {"climate.vt_living": vtherm(["climate.v_liv_1"], demand=None, hvac_action="idle")}, "living", "room_demand", "unknown", "demand_unknown"),
-    ("no active valve", {"climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}, "climate.v_liv_2": {"state": "heat", "attributes": {"hvac_action": "idle"}}}, "living", "valve_active", "fail", "no_active_valve"),
-    ("valve read even when excluded", {CENTRAL: {"state": "Off"}, "climate.vt_living": vtherm(["climate.v_liv_1"], safety_manager={"safety_state": "on"})}, "living", "valve_active", "pass", None),
-    ("no valve and excluded", {"climate.vt_living": vtherm(["climate.v_liv_1"], safety_manager={"safety_state": "on"}), "climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}}, "living", "valve_active", "fail", "no_active_valve"),
+    (
+        "no active valve",
+        {"climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}, "climate.v_liv_2": {"state": "heat", "attributes": {"hvac_action": "idle"}}},
+        "living",
+        "valve_active",
+        "fail",
+        "no_active_valve",
+    ),
+    (
+        "valve read even when excluded",
+        {CENTRAL: {"state": "Off"}, "climate.vt_living": vtherm(["climate.v_liv_1"], safety_manager={"safety_state": "on"})},
+        "living",
+        "valve_active",
+        "pass",
+        None,
+    ),
+    (
+        "no valve and excluded",
+        {"climate.vt_living": vtherm(["climate.v_liv_1"], safety_manager={"safety_state": "on"}), "climate.v_liv_1": {"state": "heat", "attributes": {"hvac_action": "idle"}}},
+        "living",
+        "valve_active",
+        "fail",
+        "no_active_valve",
+    ),
     ("valve with invalid count", {COUNT: {"state": "9", "attributes": {"active_device_ids": ["climate.v_liv_1"]}}}, "living", "valve_active", "pass", None),
     ("valve without count ids", {COUNT: {"state": "3", "attributes": {}}}, "living", "valve_active", "unknown", "count_invalid"),
     ("pdc session active", {"input_boolean.bedroom_pdc": {"state": "on"}}, "bedroom", "pdc_released", "fail", "pdc_session_active"),
@@ -309,7 +400,15 @@ def test_at_target_and_small_gap_and_regulating():
         ({"climate.vt_living": vtherm(["climate.v_liv_1"], state="cool", demand=False, hvac_action="idle")}, "other_mode"),
         ({"climate.vt_living": vtherm(["climate.v_liv_1"], is_ready=False)}, "initializing"),
         ({"climate.vt_living": {"state": "unavailable", "attributes": {}}}, "unavailable"),
-        ({"climate.vt_living": vtherm(["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False}), "binary_sensor.window_default": {"state": "on"}}, "window"),
+        (
+            {
+                "climate.vt_living": vtherm(
+                    ["climate.v_liv_1"], window_manager={"window_sensor_entity_id": "binary_sensor.window_default", "window_state": "on", "is_window_bypass": False}
+                ),
+                "binary_sensor.window_default": {"state": "on"},
+            },
+            "window",
+        ),
     ],
 )
 def test_room_wide_states(changes, expected):
@@ -323,7 +422,20 @@ def test_a_window_that_closed_is_reported_as_closing():
     assert (result.heat_state, result.reason) == ("window", "window_closing")
 
 
-def pdc_view(*, mode="control", owner="controller", managed=True, phase="waiting_heat", split_mode="off", split_action="idle", conditions=(), diagnostic="idle", now=NOW, failure=None, state="start"):
+def pdc_view(
+    *,
+    mode="control",
+    owner="controller",
+    managed=True,
+    phase="waiting_heat",
+    split_mode="off",
+    split_action="idle",
+    conditions=(),
+    diagnostic="idle",
+    now=NOW,
+    failure=None,
+    state="start",
+):
     return rs.PdcView(
         state,
         {
@@ -405,7 +517,28 @@ def test_controller_row_never_passes_in_observe():
 def test_attributes_are_finite_json_and_below_the_size_limit_with_every_condition():
     conditions = [
         {"id": cid, "status": "wait", "reason_code": "power_high", "actual": 123456.789, "expected": "<=3000", "deadline": NOW + 5, "unit": "W"}
-        for cid in ("automatic", "override", "central_mode", "program", "preset", "window_closed", "window_running", "temperature", "thermal_gap", "power_capacity", "power_stop", "other_pdc", "split_free", "split_heat", "schedule", "cooldown", "stability", "thermal_stop", "min_on", "setpoint")
+        for cid in (
+            "automatic",
+            "override",
+            "central_mode",
+            "program",
+            "preset",
+            "window_closed",
+            "window_running",
+            "temperature",
+            "thermal_gap",
+            "power_capacity",
+            "power_stop",
+            "other_pdc",
+            "split_free",
+            "split_heat",
+            "schedule",
+            "cooldown",
+            "stability",
+            "thermal_stop",
+            "min_on",
+            "setpoint",
+        )
     ]
     result, _, _ = run(snapshot(), "bedroom", pdc=pdc_view(conditions=conditions))
     attributes = rs.room_attributes(result, mode="observe", evaluated_at=NOW, generation=7)
@@ -414,8 +547,26 @@ def test_attributes_are_finite_json_and_below_the_size_limit_with_every_conditio
     assert len(text.encode()) > 6000  # the worst case is really exercised
     assert attributes["schema_version"] == 1 and attributes["generation"] == 7
     assert set(attributes) == {
-        "schema_version", "mode", "evaluated_at", "generation", "room_key", "climate_entity_id", "heat_state", "reason", "detail_reasons", "source",
-        "current", "target", "gap", "start_gap", "deadline", "stages", "blocker", "conditions", "pump", "last_error",
+        "schema_version",
+        "mode",
+        "evaluated_at",
+        "generation",
+        "room_key",
+        "climate_entity_id",
+        "heat_state",
+        "reason",
+        "detail_reasons",
+        "source",
+        "current",
+        "target",
+        "gap",
+        "start_gap",
+        "deadline",
+        "stages",
+        "blocker",
+        "conditions",
+        "pump",
+        "last_error",
     }
 
 

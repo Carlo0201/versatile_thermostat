@@ -91,7 +91,9 @@ async def one_sensor_per_configured_room_in_the_same_round():
     for key in ("bedroom", "living"):
         state, attrs = ctx.rooms[key][-1]
         check(attrs["schema_version"] == 1 and attrs["room_key"] == key and attrs["mode"] == "observe", f"{key}: schema, key and mode")
-        check(attrs["evaluated_at"] == boiler_attrs["evaluated_at"] and attrs["generation"] == boiler_attrs["generation"], f"{key}: same clock and generation as the boiler snapshot")
+        check(
+            attrs["evaluated_at"] == boiler_attrs["evaluated_at"] and attrs["generation"] == boiler_attrs["generation"], f"{key}: same clock and generation as the boiler snapshot"
+        )
         check(state == attrs["heat_state"], f"{key}: the state is the heat_state ({state})")
     check(ctx.rooms["bedroom"][-1][1]["pump"] is None or isinstance(ctx.rooms["bedroom"][-1][1]["pump"], dict), "pump object only with PDC data")
     check([s for s in ctx.rooms["living"][-1][1]["stages"]] != [], "stages are published")
@@ -187,9 +189,18 @@ async def the_pdc_view_comes_from_the_provider_and_is_forwarded():
 
     def provider(room_key):
         seen.append(room_key)
-        return "idle", {"schema_version": 1, "mode": "observe", "owner": "observer", "evaluated_at": NOW, "managed": False, "split_mode": "off", "split_action": "idle",
-                        "diagnostic_state": "idle|1100|120", "transaction": {"phase": "idle"}, "conditions": [
-                            {"id": "automatic", "status": "pass", "reason_code": None, "actual": "on", "expected": "on", "deadline": None, "unit": None}]}
+        return "idle", {
+            "schema_version": 1,
+            "mode": "observe",
+            "owner": "observer",
+            "evaluated_at": NOW,
+            "managed": False,
+            "split_mode": "off",
+            "split_action": "idle",
+            "diagnostic_state": "idle|1100|120",
+            "transaction": {"phase": "idle"},
+            "conditions": [{"id": "automatic", "status": "pass", "reason_code": None, "actual": "on", "expected": "on", "deadline": None, "unit": None}],
+        }
 
     ctx.mgr.pdc_state_provider = provider
     await ctx.mgr.async_start()
@@ -216,7 +227,17 @@ async def the_boiler_output_is_identical_with_and_without_the_room_sensors():
 async def the_new_code_sends_no_command_when_the_mode_changes_and_back():
     results = []
     for with_rooms in (True, False):
-        ctx = await make(sec=section(mode="control", external_owner_entity_ids=["automation.owner_a"], control_confirmed=True), snap={**tcol.base_snapshot(now=NOW), "automation.owner_a": {"state": "off"}, tcol.MASTER: {"state": "heat", "attributes": {"hvac_modes": ["off", "heat"]}}, tcol.COUNT: {"state": "0", "attributes": {"active_device_ids": []}}}, rooms=with_rooms, start=False)
+        ctx = await make(
+            sec=section(mode="control", external_owner_entity_ids=["automation.owner_a"], control_confirmed=True),
+            snap={
+                **tcol.base_snapshot(now=NOW),
+                "automation.owner_a": {"state": "off"},
+                tcol.MASTER: {"state": "heat", "attributes": {"hvac_modes": ["off", "heat"]}},
+                tcol.COUNT: {"state": "0", "attributes": {"active_device_ids": []}},
+            },
+            rooms=with_rooms,
+            start=False,
+        )
         await ctx.mgr.async_start()
         await ctx.world.advance(60)
         results.append([(c["data"]["entity_id"], c["data"]["hvac_mode"]) for c in ctx.hass.services.calls])

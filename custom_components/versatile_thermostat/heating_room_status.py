@@ -510,7 +510,11 @@ def _ready_and_demand(
         if unavailable:
             return _condition(id_, STAGE_READY, CONDITION_UNKNOWN, "not_evaluated")
         base = _from_codes(id_, codes, fail, unknown)
-        return RoomCondition(base.id, base.stage, base.status, base.reason_code, **values) if base.status != CONDITION_PASS else RoomCondition(base.id, base.stage, base.status, None, **values)
+        return (
+            RoomCondition(base.id, base.stage, base.status, base.reason_code, **values)
+            if base.status != CONDITION_PASS
+            else RoomCondition(base.id, base.stage, base.status, None, **values)
+        )
 
     result.append(derived("hvac_enabled", (EXCLUSION_HVAC_NOT_HEATING,), actual=reading.state if _available(reading.state) else None, expected="heat|auto"))
     result.append(derived("room_ready", (EXCLUSION_NOT_READY,)))
@@ -631,9 +635,7 @@ def _controller_condition(controller: ControllerView | None) -> RoomCondition:
     return _condition("controller", STAGE_BOILER, CONDITION_FAIL, "not_owner", actual=controller.owner, expected="controller")
 
 
-def _boiler_conditions(
-    eligible: bool, codes: tuple[str, ...], decision: BoilerDecision | None, controller: ControllerView | None, unavailable: bool
-) -> list[RoomCondition]:
+def _boiler_conditions(eligible: bool, codes: tuple[str, ...], decision: BoilerDecision | None, controller: ControllerView | None, unavailable: bool) -> list[RoomCondition]:
     if EXCLUSION_NOT_BOILER_PARTICIPANT in codes:
         # The room is not part of the boiler by configuration: the whole stage does not apply.
         names = ("boiler_participation", "eligible_radiator", "controller")
@@ -648,9 +650,7 @@ def _boiler_conditions(
     if decision is not None:
         for item in decision.conditions:
             data = condition_to_dict(item)
-            conds.append(
-                RoomCondition(data["id"], STAGE_BOILER, data["status"], data["reason_code"], data["actual"], data["expected"], data["deadline"], data["unit"])
-            )
+            conds.append(RoomCondition(data["id"], STAGE_BOILER, data["status"], data["reason_code"], data["actual"], data["expected"], data["deadline"], data["unit"]))
     return conds
 
 
@@ -765,7 +765,12 @@ def _explain(
     elif reading.heating and not eligible and reading.participates is False:
         state = "radiator_heating"
         reason = "radiator_reported"
-    elif requested and eligible and boiler is False and (reading.heating or (decision is not None and (decision.deadline is not None or decision.reason == BOILER_REASON_AWAITING_CONSENT))):
+    elif (
+        requested
+        and eligible
+        and boiler is False
+        and (reading.heating or (decision is not None and (decision.deadline is not None or decision.reason == BOILER_REASON_AWAITING_CONSENT)))
+    ):
         state = "boiler_waiting"
         available = decision is not None
         cooldown = next((item for item in (decision.conditions if decision else ()) if item.id == "cooldown"), None)
@@ -936,9 +941,7 @@ def room_attributes(status: RoomStatus, *, mode: str, evaluated_at: float, gener
     return attributes
 
 
-def empty_room_attributes(
-    room_key: str, climate_entity_id: str | None, *, mode: str, evaluated_at: float | None, generation: int, last_error: str | None = None
-) -> dict[str, Any]:
+def empty_room_attributes(room_key: str, climate_entity_id: str | None, *, mode: str, evaluated_at: float | None, generation: int, last_error: str | None = None) -> dict[str, Any]:
     """Attributes of the ``disabled``, ``starting`` and ``error`` states (no conditions)."""
     return json_safe(
         {

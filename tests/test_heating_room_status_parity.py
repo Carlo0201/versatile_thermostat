@@ -36,22 +36,62 @@ DIFFS_PATH = FIXTURES / "parity_differences.json"
 
 # Card row id -> ids of our conditions (a tuple is compared as the worst status of the group).
 RADIATOR = {
-    "roomEnabled": ("hvac_enabled",), "roomReady": ("room_ready",), "central": ("central_mode",), "window": ("window",),
-    "temperature": ("temperature",), "roomDemand": ("room_demand",), "radiatorReleased": ("inhibition", "pdc_released"), "valveActive": ("valve_active",),
+    "roomEnabled": ("hvac_enabled",),
+    "roomReady": ("room_ready",),
+    "central": ("central_mode",),
+    "window": ("window",),
+    "temperature": ("temperature",),
+    "roomDemand": ("room_demand",),
+    "radiatorReleased": ("inhibition", "pdc_released"),
+    "valveActive": ("valve_active",),
 }
 BOILER = {
-    "boilerParticipation": ("boiler_participation",), "boilerRoomState": ("room_available", "hvac_enabled"), "boilerRoomReady": ("room_ready", "initialized"),
-    "boilerWindow": ("window",), "boilerInhibition": ("inhibition",), "safety": ("safety",), "overpowering": ("overpowering",), "boilerRoomDemand": ("room_demand",),
-    "boilerTemperature": ("temperature",), "boilerPumpReleased": ("pdc_released",), "radiatorSplitOff": ("pdc_released",), "boilerValve": ("valve_active",),
-    "eligibleRadiator": ("eligible_radiator",), "nativeController": ("controller",), "validInputs": ("inputs",), "boilerMaster": ("master",),
-    "boilerValveCount": ("valve_count",), "boilerThermalGap": ("thermal_gap",), "boilerPilot": ("pilot",), "boilerSingleRoomPilot": ("single_room_pilot",),
-    "boilerManual": ("manual_request",), "boilerRoute": ("path",), "boilerHold": ("stability",), "boilerCooldown": ("cooldown",), "boilerConsent": ("consent",),
+    "boilerParticipation": ("boiler_participation",),
+    "boilerRoomState": ("room_available", "hvac_enabled"),
+    "boilerRoomReady": ("room_ready", "initialized"),
+    "boilerWindow": ("window",),
+    "boilerInhibition": ("inhibition",),
+    "safety": ("safety",),
+    "overpowering": ("overpowering",),
+    "boilerRoomDemand": ("room_demand",),
+    "boilerTemperature": ("temperature",),
+    "boilerPumpReleased": ("pdc_released",),
+    "radiatorSplitOff": ("pdc_released",),
+    "boilerValve": ("valve_active",),
+    "eligibleRadiator": ("eligible_radiator",),
+    "nativeController": ("controller",),
+    "validInputs": ("inputs",),
+    "boilerMaster": ("master",),
+    "boilerValveCount": ("valve_count",),
+    "boilerThermalGap": ("thermal_gap",),
+    "boilerPilot": ("pilot",),
+    "boilerSingleRoomPilot": ("single_room_pilot",),
+    "boilerManual": ("manual_request",),
+    "boilerRoute": ("path",),
+    "boilerHold": ("stability",),
+    "boilerCooldown": ("cooldown",),
+    "boilerConsent": ("consent",),
 }
 PUMP = {
-    "pumpAutomatic": "automatic", "pumpOverride": "override", "central": "central_mode", "pumpProgram": "program", "pumpPreset": "preset", "pumpWindow": "window_closed",
-    "pumpWindowGrace": "window_running", "pumpTemperature": "temperature", "pumpGap": "thermal_gap", "power": "power_capacity", "pumpPowerStop": "power_stop",
-    "otherPump": "other_pdc", "splitOff": "split_free", "pumpSplitHeat": "split_heat", "pumpSchedule": "schedule", "pumpCooldown": "cooldown", "pumpHold": "stability",
-    "pumpThermalStop": "thermal_stop", "pumpMinimumOn": "min_on",
+    "pumpAutomatic": "automatic",
+    "pumpOverride": "override",
+    "central": "central_mode",
+    "pumpProgram": "program",
+    "pumpPreset": "preset",
+    "pumpWindow": "window_closed",
+    "pumpWindowGrace": "window_running",
+    "pumpTemperature": "temperature",
+    "pumpGap": "thermal_gap",
+    "power": "power_capacity",
+    "pumpPowerStop": "power_stop",
+    "otherPump": "other_pdc",
+    "splitOff": "split_free",
+    "pumpSplitHeat": "split_heat",
+    "pumpSchedule": "schedule",
+    "pumpCooldown": "cooldown",
+    "pumpHold": "stability",
+    "pumpThermalStop": "thermal_stop",
+    "pumpMinimumOn": "min_on",
 }
 SEVERITY = ("fail", "wait", "unknown", "observe", "pass", "na")
 
@@ -73,8 +113,21 @@ def compare(name):
     ref = REFERENCE[name]
     # The condition id is unique only inside its stage (``central_mode``, ``temperature``, ``cooldown``... exist in two).
     by_id = {(item.stage, item.id): item.status for item in ours.conditions}
-    RADIATOR_STAGE = {"hvac_enabled": "ready", "room_ready": "ready", "central_mode": "ready", "window": "ready", "temperature": "ready", "room_demand": "demand",
-                      "inhibition": "ready", "pdc_released": "ready", "valve_active": "demand", "room_available": "ready", "initialized": "ready", "safety": "ready", "overpowering": "ready"}
+    RADIATOR_STAGE = {
+        "hvac_enabled": "ready",
+        "room_ready": "ready",
+        "central_mode": "ready",
+        "window": "ready",
+        "temperature": "ready",
+        "room_demand": "demand",
+        "inhibition": "ready",
+        "pdc_released": "ready",
+        "valve_active": "demand",
+        "room_available": "ready",
+        "initialized": "ready",
+        "safety": "ready",
+        "overpowering": "ready",
+    }
     diffs: list[str] = []
 
     def lookup(i, stage=None):
