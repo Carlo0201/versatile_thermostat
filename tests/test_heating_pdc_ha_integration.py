@@ -1,6 +1,6 @@
 # pylint: disable=wildcard-import, unused-wildcard-import, protected-access, unused-argument, line-too-long, redefined-outer-name
 
-"""Home Assistant tests of the integration of the PDC runtime in the central configuration (observe only).
+"""Home Assistant tests of the integration of the PDC runtime in the central configuration.
 
 WRITTEN AND NEVER EXECUTED: Carlo forbade running Home Assistant (and the pytest-homeassistant fixtures) for this work.
 They may contain errors and must be run once, in the isolated test environment, before any activation.
@@ -119,9 +119,9 @@ async def test_control_is_refused_with_an_error_state_and_nothing_is_built(hass:
     entry = await setup_central(hass, pdc_section("control"))
     api = VersatileThermostatAPI.get_vtherm_api(hass)
     manager = api.heating_pdc_manager
-    assert manager is not None and not manager.is_running and manager.runtime is None and manager.config_error == "config_control_not_available:mode"
+    assert manager is not None and not manager.is_running and manager.runtime is None and manager.config_error == "config_control_not_confirmed:control_confirmed"
     sensor = pdc_sensor(hass, entry)
-    assert sensor.state == "error" and sensor.attributes["last_error"] == "config_control_not_available:mode"
+    assert sensor.state == "error" and sensor.attributes["last_error"] == "config_control_not_confirmed:control_confirmed"
     service_calls.clear()
     await clock.advance(hass, 400)
     assert pdc_calls(service_calls) == [] and not any("heating_orchestration_pdc" in key for key in hass_storage)
@@ -162,7 +162,10 @@ async def _options_to_pdc(hass, entry):
     return await hass.config_entries.options.async_configure(result["flow_id"], {"next_step_id": "heating_pdc"})
 
 
-async def test_the_options_flow_never_offers_control_for_the_pdc(hass: HomeAssistant, init_vtherm_api, clock):
+async def test_the_options_flow_refuses_control_when_its_gate_is_closed(hass: HomeAssistant, init_vtherm_api, clock, monkeypatch):
+    from custom_components.versatile_thermostat.config_flow import VersatileThermostatOptionsFlowHandler
+
+    monkeypatch.setattr(VersatileThermostatOptionsFlowHandler, "_pdc_allow_control", False)
     put_states(hass, world(clock.now))
     put_pdc_states(hass)
     entry = await setup_central(hass, observe_section())
@@ -215,4 +218,41 @@ async def test_a_refused_control_value_in_the_stored_section_is_an_error_not_a_c
     assert await hass.config_entries.async_setup(entry.entry_id)
     await settle(hass)
     refused = VersatileThermostatAPI.get_vtherm_api(hass).heating_pdc_manager
-    assert refused.runtime is None and refused.config_error == "config_control_not_available:mode"
+    assert refused.runtime is None and refused.config_error == "config_control_not_confirmed:control_confirmed"
+
+
+async def test_removing_a_room_cleans_only_its_diagnostic_registry_entry(hass: HomeAssistant, init_vtherm_api, clock):
+    put_states(hass, world(clock.now))
+    put_pdc_states(hass)
+    entry = await setup_central(hass, pdc_section())
+    registry = er.async_get(hass)
+    old = registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}{PDC_SUFFIX}carlo")
+    assert old is not None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    updated = pdc_section("disabled", rooms=[])
+    hass.config_entries.async_update_entry(entry, data={**entry.data, "heating_orchestration": updated})
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await settle(hass)
+    assert registry.async_get(old) is None
+    assert hass.states.get("climate.trv_vtherm_carlo") is not None
+
+
+async def test_gated_pdc_options_require_confirmation_after_room_configuration(hass: HomeAssistant, init_vtherm_api, clock, monkeypatch):
+    from custom_components.versatile_thermostat.config_flow import VersatileThermostatOptionsFlowHandler
+
+    monkeypatch.setattr(VersatileThermostatOptionsFlowHandler, "_pdc_allow_control", True)
+    put_states(hass, world(clock.now))
+    put_pdc_states(hass)
+    entry = await setup_central(hass, observe_section())
+    form = await _options_to_pdc(hass, entry)
+    menu = await hass.config_entries.options.async_configure(
+        form["flow_id"], {"pdc_mode": "control", "power_entity_id": "sensor.power", "central_mode_entity_id": "select.central_mode_pdc"}
+    )
+    add = await hass.config_entries.options.async_configure(menu["flow_id"], {"next_step_id": "heating_pdc_add_room"})
+    rooms = await hass.config_entries.options.async_configure(add["flow_id"], {**ROOM, "external_owner_entity_ids": []})
+    confirm = await hass.config_entries.options.async_configure(rooms["flow_id"], {"next_step_id": "heating_pdc_rooms_done"})
+    assert confirm["step_id"] == "heating_pdc_control_confirm"
+    denied = await hass.config_entries.options.async_configure(confirm["flow_id"], {"confirm_pdc_control": False})
+    assert denied["errors"] == {"confirm_pdc_control": "pdc_control_not_confirmed"}
+    done = await hass.config_entries.options.async_configure(confirm["flow_id"], {"confirm_pdc_control": True})
+    assert done["type"] == "menu"

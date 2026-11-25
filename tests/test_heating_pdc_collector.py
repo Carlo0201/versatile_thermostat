@@ -208,6 +208,7 @@ def test_invalid_configurations_are_rejected_with_a_stable_code(mutate, code, ke
 def test_control_needs_an_explicit_owner_declaration_and_observe_needs_the_legacy_helpers():
     data = copy.deepcopy(SECTION)
     data["mode"] = "control"
+    data["control_confirmed"] = True
     data["rooms"][0].pop("external_owner_entity_ids")
     with pytest.raises(c.PdcConfigError) as err:
         c.parse_pdc_config(data, allow_control=True)
@@ -228,6 +229,22 @@ def test_control_is_refused_unless_the_host_opts_in_and_disabled_keeps_whatever_
     assert c.parse_pdc_config({**data, "mode": "disabled"}).mode == "disabled"  # not even looked at
     assert c.parse_pdc_config({"mode": "disabled", "rooms": "garbage"}).rooms == ()
     assert c.parse_pdc_config({**data, "mode": "observe"}).mode == "observe"
+
+
+def test_control_needs_the_section_confirmation_even_where_the_host_opts_in():
+    data = section(mode="control")
+    with pytest.raises(c.PdcConfigError) as err:
+        c.parse_pdc_config(data, allow_control=True)
+    assert (err.value.code, err.value.key) == (c.ERR_CONTROL_NOT_CONFIRMED, c.KEY_CONTROL_CONFIRMED)
+    confirmed = c.parse_pdc_config({**data, "control_confirmed": True}, allow_control=True)
+    assert confirmed.mode == "control"
+    # Only a literal ``True`` confirms: a truthy value is not a confirmation.
+    for value in (1, "true", "on", None):
+        with pytest.raises(c.PdcConfigError) as err:
+            c.parse_pdc_config({**data, "control_confirmed": value}, allow_control=True)
+        assert err.value.code == c.ERR_CONTROL_NOT_CONFIRMED
+    # ``observe`` never needs it, whatever the section holds.
+    assert c.parse_pdc_config(section(mode="observe")).mode == "observe"
 
 
 def test_disabled_without_rooms_is_valid_and_non_mappings_are_not():
@@ -252,6 +269,30 @@ def test_a_nominal_world_gives_the_expected_snapshot():
     assert s.schedule_switches == ("on", "off") and s.cycle.mode == "off" and s.cycle.target == 19.0 and s.cycle_available
     assert s.radiator_valve_mode == "heat" and s.radiator_inhibited is False  # specific_states present without an inhibition section
     assert policy.evaluate_pdc(s, policy.PdcStartContext(NOW - 200, False), NOW, CARLO.policy).action == "start"
+
+
+@pytest.mark.parametrize(
+    "mode,active,pausing,ending,radiator,expected",
+    [
+        ("override", True, False, False, "heat", True),
+        ("manual", False, False, False, "heat", True),
+        ("program", False, False, False, "heat", False),
+        ("override", True, True, False, "heat", False),
+        ("override", True, False, True, "heat", False),
+        ("override", True, False, False, "unavailable", False),
+        ("unknown", False, False, False, "heat", False),
+    ],
+)
+def test_native_room_override_drives_manual_presets_without_a_timer(mode, active, pausing, ending, radiator, expected):
+    states = world()
+    del states["timer.override_carlo"]
+    entity = states["climate.trv_vtherm_carlo"]
+    entity["state"] = radiator
+    entity["attributes"].update(preset_mode="activity", program_mode=mode, override_active=active, override_pausing=pausing, override_ending=ending)
+    assert policy.preset_ok(collect(states).snapshot, CARLO.policy) is expected
+    # Publishing native status takes precedence even if a legacy timer is still active.
+    states["timer.override_carlo"] = st("active")
+    assert policy.preset_ok(collect(states).snapshot, CARLO.policy) is expected
 
 
 def test_missing_unknown_and_unavailable_are_never_turned_into_off_zero_or_closed():
@@ -567,6 +608,9 @@ def test_the_collector_is_pure():
             imported |= {alias.name.split(".")[0] for alias in node.names}
         elif isinstance(node, ast.ImportFrom):
             imported.add(("." * node.level) + (node.module or "").split(".")[0])
-    allowed = {"__future__", "json", "math", "re", "collections", "dataclasses", "datetime", "typing", ".heating_pdc_policy", ".heating_pdc_provenance", ".heating_pdc_transaction"}
+    allowed = {
+        "__future__", "json", "math", "re", "collections", "dataclasses", "datetime", "typing",
+        ".heating_pdc_policy", ".heating_pdc_provenance", ".heating_pdc_transaction", ".room_override_policy",
+    }
     assert imported <= allowed, imported
     assert math.isfinite(1.0)

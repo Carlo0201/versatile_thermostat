@@ -282,11 +282,18 @@ HO_BOILER_SENSOR_SUFFIX = "_heating_orchestration_boiler"
 HO_STORAGE_VERSION = 2
 HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
 
-# PDC (heat pump) runtime: first release, observe only. It lives in the same section of the central
-# entry, with its own mode (independent of the boiler ``mode``) and its own sub-section. When the keys
-# are absent nothing is created. ``control`` is not selectable and is refused by the manager.
+# PDC (heat pump) runtime has its own mode, independent of the boiler.
+# When the keys are absent nothing is created.
 CONF_HO_PDC_MODE = "pdc_mode"
 CONF_HO_PDC_RUNTIME = "pdc_runtime"
+# PDC control gate. It is separate from ``PDC_CONTROL_AVAILABLE`` (the runtime barrier):
+# this one decides whether the options flow may offer ``control`` for explicit confirmation.
+HO_PDC_CONTROL_ENABLED = True
+SERVICE_PDC_RESUME_AUTOMATIC = "pdc_resume_automatic"
+# Section-level confirmation of the PDC ``control`` mode (sibling of ``pdc_mode``); the
+# manager maps it to the parser key ``control_confirmed``. Never inherited by a change.
+CONF_HO_PDC_CONTROL_CONFIRMED = "pdc_control_confirmed"
+CONF_HO_PDC_CONTROL_CONFIRM = "confirm_pdc_control"
 CONF_HO_PDC_ROOMS_TO_REMOVE = "pdc_rooms_to_remove"
 HO_PDC_SELECTABLE_MODES = ["disabled", "observe"]
 HO_PDC_SENSOR_SUFFIX = "_heating_orchestration_pdc_"

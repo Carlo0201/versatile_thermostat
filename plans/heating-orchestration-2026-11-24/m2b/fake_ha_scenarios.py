@@ -71,7 +71,7 @@ async def make(snap, sec=None, stored=None, **kw):
     ctx.hass = h.FakeHass()
     ctx.hass.stored = dict(stored or {})
     ctx.hass.save_hook = None
-    ctx.clock = h.Clock(NOW)
+    ctx.clock = h.Clock(kw.get("now", NOW))
     ctx.world = h.World(ctx.hass, ctx.clock)
     ctx.world.start_intervals()
     put(ctx.hass, snap)
@@ -240,7 +240,7 @@ async def s07_unload_mid_wait_then_restart_reads_the_master():
     stored = ctx.hass.stored["versatile_thermostat.heating_orchestration.ENTRY"]
     assert stored["version"] == 2 and stored["data"]["command"]["status"] == "pending" and stored["data"]["command"]["mode"] == "off", stored
     assert not ctx.hass.point_timers or all(not t[2] for t in ctx.hass.point_timers)
-    ctx2 = await make(off_world(), stored=ctx.hass.stored)
+    ctx2 = await make(off_world(), stored=ctx.hass.stored, now=ctx.clock.now)
     a = attrs(ctx2)
     assert a["command_status"] == "unconfirmed" and a["last_confirmation_at"] is None and a["control_status"] == "settling", a
     assert calls(ctx2) == []
@@ -560,7 +560,7 @@ async def s22_a_service_in_flight_is_not_cancelled_when_the_action_becomes_none(
 @scenario
 async def s23_release_gate_refuses_a_stored_control_section():
     """With the shipped gate (control unavailable) a confirmed control section never commands."""
-    assert mod.RELEASE_BOILER_CONTROL_AVAILABLE is False, "the shipped release must keep boiler control closed"
+    # Exercise the closed gate explicitly, also when a reviewed release opens it.
     mod.BOILER_CONTROL_AVAILABLE = False
     try:
         ctx = await make(off_world())
@@ -572,6 +572,37 @@ async def s23_release_gate_refuses_a_stored_control_section():
         await ctx.mgr.async_stop()
     finally:
         mod.BOILER_CONTROL_AVAILABLE = True
+
+
+@scenario
+async def s24_restart_preserves_the_spent_budget():
+    ctx = await make(off_world())
+    await ctx.world.advance(30)
+    assert len(calls(ctx)) == 1
+    await ctx.mgr.async_stop()
+    stored = ctx.hass.stored["versatile_thermostat.heating_orchestration.ENTRY"]
+    assert stored["data"]["command"]["attempts"] == 1
+    ctx2 = await make(off_world(), stored=ctx.hass.stored, now=ctx.clock.now)
+    assert ctx2.mgr._budget and ctx2.mgr._budget[0].attempts == 1
+    await ctx2.world.advance(30)
+    assert calls(ctx2) == [], "restart must retain the backoff of the first send"
+    await ctx2.mgr.async_stop()
+
+
+@scenario
+async def s25_surviving_sensor_reattaches_after_failed_unload():
+    ctx = await make(off_world())
+    pushes = []
+    detach = ctx.mgr.attach(lambda state, attrs: pushes.append(state), "sensor.boiler")
+    await ctx.mgr.async_stop()
+    replacement = mod.FeatureHeatingOrchestrationManager(ctx.hass, "ENTRY", section(), clock=ctx.clock)
+    replacement.adopt_publishers(ctx.mgr)
+    replacement._publish("reattached", {})
+    assert pushes[-1] == "reattached"
+    detach()
+    replacement._publish("detached", {})
+    assert pushes[-1] == "reattached"
+    await replacement.async_stop()
 
 
 async def main():

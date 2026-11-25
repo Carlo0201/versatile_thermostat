@@ -465,6 +465,7 @@ def record_inhibition_result(
     transitioned: bool | None,
     obs: PdcObservation | None = None,
     config: PdcTransactionConfig = DEFAULT_CONFIG,
+    call_sent: bool = True,
 ) -> PdcStep:
     """Settle the ownership claim after the inhibition call returned (or raised).
 
@@ -477,7 +478,11 @@ def record_inhibition_result(
     * inhibited but no transition: the inhibition is somebody else's. The claim is
       dropped (it will never be released by us) and a start is abandoned through
       the return path;
-    * unreadable: the claim made before the call stands.
+    * unreadable after a call that was sent (it may have been applied): the claim made
+      before the call stands;
+    * unreadable and no call was sent (``call_sent`` false, e.g. the flag was unknown
+      before the call): nothing was placed by us, so the claim is dropped. An
+      inhibition appearing later is somebody else's and is never released by us.
     """
     _finite("now", now)
     if token != tx.token:
@@ -487,7 +492,7 @@ def record_inhibition_result(
     if inhibited_after is True and transitioned is not False:
         return PdcStep(tx, reservation)
     dropped = replace(tx, inhibition_owned=False)
-    if inhibited_after is None:
+    if inhibited_after is None and call_sent:
         return PdcStep(tx, reservation)
     if tx.phase == PHASE_OVERRIDE_HOLD:
         return PdcStep(dropped, reservation)

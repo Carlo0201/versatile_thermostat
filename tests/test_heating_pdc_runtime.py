@@ -74,7 +74,11 @@ def section(mode: str, owners: dict[str, list[str]] | None = None, rooms: tuple[
         else:
             room["manual_preset_bypass"] = True
         out.append(room)
-    return {"mode": mode, "power_entity_id": "sensor.power", "central_mode_entity_id": "select.central_mode", "rooms": out, **extra}
+    data = {"mode": mode, "power_entity_id": "sensor.power", "central_mode_entity_id": "select.central_mode", "rooms": out}
+    if mode == "control":
+        # A stored control always carries the explicit confirmation (``**extra`` can override it).
+        data["control_confirmed"] = True
+    return {**data, **extra}
 
 
 class Plant:
@@ -841,6 +845,60 @@ def test_observe_sends_no_command_creates_no_transaction_and_persists_nothing():
         await plant.advance(50.0)
         assert plant.calls == [] and rt.override("carlo") == prov.OverrideState()
         assert (await rt.async_suspend("x")).accepted is False
+
+    run(scenario())
+
+
+def test_observe_publishes_an_error_and_clears_it_when_a_later_pass_succeeds(monkeypatch):
+    async def scenario() -> None:
+        plant, rt = make("observe")
+        original = rt._collect
+
+        def boom(room: Any, now: float) -> Any:
+            raise RuntimeError("collect exploded")
+
+        monkeypatch.setattr(rt, "_collect", boom)
+        await rt.async_run_pass("carlo")
+        _, state, attrs = plant.published[-1]
+        assert state == "error" and attrs["last_error"] == "evaluation_error:RuntimeError"
+        assert plant.calls == [] and plant.saves == 0 and plant.stored is None
+        assert not any(entry[0] in ("inhibit", "unset", "save") for entry in plant.log)
+        # the cause is still there: the next pass reports the same error again, at a newer instant
+        first_evaluated_at = attrs["evaluated_at"]
+        plant.clock += 5.0
+        await rt.async_run_pass("carlo")
+        _, state, attrs = plant.published[-1]
+        assert state == "error" and attrs["last_error"] == "evaluation_error:RuntimeError"
+        assert attrs["evaluated_at"] > first_evaluated_at
+        # recovered: the error is gone and the normal observation resumes, still without effects
+        monkeypatch.setattr(rt, "_collect", original)
+        await rt.async_run_pass("carlo")
+        _, state, attrs = plant.published[-1]
+        assert state != "error" and attrs["last_error"] is None and attrs["mode"] == "observe"
+        assert plant.calls == [] and plant.saves == 0 and plant.stored is None
+
+    run(scenario())
+
+
+def test_a_control_pass_that_fails_is_published_and_sends_nothing(monkeypatch):
+    async def scenario() -> None:
+        plant, rt = make("control")
+        original = rt._collect
+
+        def boom(room: Any, now: float) -> Any:
+            raise RuntimeError("collect exploded")
+
+        monkeypatch.setattr(rt, "_collect", boom)
+        await rt.async_run_pass("carlo")
+        _, state, attrs = plant.published[-1]
+        assert state == "error" and attrs["last_error"] == "evaluation_error:RuntimeError"
+        assert plant.calls == [] and plant.saves == 0 and plant.stored is None
+        assert not any(entry[0] in ("inhibit", "unset", "save", "started") for entry in plant.log)
+        # recovered: the engine evaluates again instead of staying stuck on the error
+        monkeypatch.setattr(rt, "_collect", original)
+        await rt.async_run_pass("carlo")
+        _, state, attrs = plant.published[-1]
+        assert state != "error" and attrs["last_error"] is None
 
     run(scenario())
 

@@ -310,15 +310,25 @@ STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA = vol.Schema(
 
 # PDC (heat pump) runtime, observe only in this release: ``control`` is not offered.
 # Global step: mode and the two entities shared by the PDC rooms.
-STEP_HEATING_PDC_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_HO_PDC_MODE, default="disabled"): selector.SelectSelector(
-            selector.SelectSelectorConfig(options=list(HO_PDC_SELECTABLE_MODES), translation_key="heating_pdc_mode", mode=selector.SelectSelectorMode.LIST)
-        ),
-        vol.Optional(_pdc.KEY_POWER): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
-        vol.Optional(_pdc.KEY_CENTRAL_MODE): _ho_entity_selector(_pdc.CENTRAL_MODE_DOMAINS),
-    }
-)
+def build_step_heating_pdc_schema(modes: list[str]) -> vol.Schema:
+    """Mode and shared entities of the PDC orchestration.
+
+    The caller decides which modes are offered: the release constant keeps
+    ``disabled``/``observe``, while the options flow adds ``control`` only when
+    the release gate allows it (the confirmation step follows).
+    """
+    return vol.Schema(
+        {
+            vol.Required(CONF_HO_PDC_MODE, default="disabled"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(modes), translation_key="heating_pdc_mode", mode=selector.SelectSelectorMode.LIST)
+            ),
+            vol.Optional(_pdc.KEY_POWER): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
+            vol.Optional(_pdc.KEY_CENTRAL_MODE): _ho_entity_selector(_pdc.CENTRAL_MODE_DOMAINS),
+        }
+    )
+
+
+STEP_HEATING_PDC_SCHEMA = build_step_heating_pdc_schema(HO_PDC_SELECTABLE_MODES)
 
 # One PDC room (flat form, stored as a nested element of ``pdc_runtime.rooms``). The two rooms of the
 # installation differ only by ``setpoint_min_c`` and ``manual_preset_bypass``.
@@ -338,8 +348,16 @@ STEP_HEATING_PDC_ROOM_SCHEMA = vol.Schema(
         vol.Optional(_pdc.KEY_CYCLE): _ho_entity_selector(_pdc.TEXT_DOMAINS),
         vol.Optional(_pdc.KEY_OVERRIDE_TIMER): _ho_entity_selector(_pdc.TIMER_DOMAINS),
         vol.Optional(_pdc.KEY_SCHEDULE_SWITCHES): _ho_entity_selector(("switch",), multiple=True),
+        vol.Optional(_pdc.KEY_EXTERNAL_OWNERS): _ho_entity_selector(_pdc.OWNER_DOMAINS, multiple=True),
         vol.Optional(_pdc.KEY_SETPOINT_MIN, default=16): selector.NumberSelector(selector.NumberSelectorConfig(min=5, max=30, step=1, mode=selector.NumberSelectorMode.BOX)),
         vol.Optional(_pdc.KEY_MANUAL_BYPASS, default=False): selector.BooleanSelector(),
+    }
+)
+
+# PDC orchestration: explicit confirmation of the ``control`` mode (gated by the release flag).
+STEP_HEATING_PDC_CONTROL_CONFIRM_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_PDC_CONTROL_CONFIRM, default=False): selector.BooleanSelector(),
     }
 )
 

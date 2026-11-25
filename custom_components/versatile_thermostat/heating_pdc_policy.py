@@ -382,6 +382,8 @@ class PdcSnapshot:
     schedule_switches: tuple[str | None, ...] = ()
     radiator_valve_mode: str | None = None
     radiator_inhibited: bool | None = None
+    # None means the radiator does not publish native room-override attributes.
+    room_manual_regulation: bool | None = None
 
     def __post_init__(self) -> None:
         """Validate the snapshot without touching caller data."""
@@ -422,6 +424,8 @@ class PdcSnapshot:
         object.__setattr__(self, "schedule_switches", _string_tuple("schedule_switches", self.schedule_switches, allow_none=True))
         if self.radiator_inhibited is not None and not isinstance(self.radiator_inhibited, bool):
             raise TypeError("radiator_inhibited must be a boolean or None")
+        if self.room_manual_regulation is not None and not isinstance(self.room_manual_regulation, bool):
+            raise TypeError("room_manual_regulation must be a boolean or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -484,6 +488,8 @@ def preset_ok(snapshot: PdcSnapshot, config: PdcPolicyConfig = DEFAULT_CONFIG) -
         return True
     if not config.manual_preset_bypass:
         return False
+    if snapshot.room_manual_regulation is not None:
+        return snapshot.room_manual_regulation
     timer = snapshot.heating_override_timer
     return timer == TIMER_ACTIVE or (timer == TIMER_IDLE and all(switch == STATE_OFF for switch in snapshot.schedule_switches))
 

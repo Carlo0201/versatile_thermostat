@@ -15,6 +15,7 @@ from homeassistant.const import SERVICE_RELOAD, EVENT_HOMEASSISTANT_STARTED
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.core import HomeAssistant, CoreState, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
 from homeassistant.const import UnitOfTemperature
@@ -108,6 +109,21 @@ async def async_setup(
         _handle_reload,
     )
 
+    if HO_PDC_CONTROL_ENABLED:
+
+        async def _handle_pdc_resume_automatic(call):
+            manager = api.heating_pdc_manager
+            if manager is None or not await manager.async_resume_automatic(call.data["room_key"]):
+                raise HomeAssistantError("The native PDC controller cannot resume this room.")
+
+        async_register_admin_service(
+            hass,
+            DOMAIN,
+            SERVICE_PDC_RESUME_AUTOMATIC,
+            _handle_pdc_resume_automatic,
+            schema=vol.Schema({vol.Required("room_key"): vol.Match(r"[a-z0-9_]{1,64}\Z")}),
+        )
+
     # Initialize log collector
     # Note: Single shared instance stored in hass.data[DOMAIN] is used for all VTherm loggers.
     # This ensures that all log records are centralized in one ring buffer, regardless of reload.
@@ -177,8 +193,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         entry.async_on_unload(_stop_orchestration)
 
-    # PDC (heat pump) runtime, observe only in this release: created only when the PDC sub-section exists in the
-    # central configuration (absent keys: nothing is created, the entry is unchanged). It never sends a command.
+    # PDC (heat pump) runtime: when the central entry has no PDC sub-section, nothing is created.
     pdc = None
     if entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and _has_pdc_runtime(entry):
         pdc = await api.async_create_heating_pdc_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
@@ -245,10 +260,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Stop the orchestration (observer or boiler controller) before its sensor is removed:
     # no late publication and, above all, no command while the entry is being unloaded.
     had_orchestration = bool(api and entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and api.heating_orchestration_manager is not None)
+    previous_orchestration = api.heating_orchestration_manager if had_orchestration else None
     if had_orchestration:
         await api.async_remove_heating_orchestration_manager(entry.entry_id)
     # Same for the PDC runtime: its listeners, timers and workers are cancelled before the platforms go.
     had_pdc = bool(api and entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and api.heating_pdc_manager is not None)
+    previous_pdc = api.heating_pdc_manager if had_pdc else None
     if had_pdc:
         await api.async_remove_heating_pdc_manager(entry.entry_id)
 
@@ -263,10 +280,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # keeps showing the last state until the next reload, documented limitation).
         _LOGGER.warning("Unloading the central configuration failed: the boiler orchestration is restarted")
         restored = await api.async_create_heating_orchestration_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
+        restored.adopt_publishers(previous_orchestration)
         await restored.async_start()
     if not unload_ok and had_pdc and _has_pdc_runtime(entry):
         _LOGGER.warning("Unloading the central configuration failed: the PDC observer is restarted")
         restored_pdc = await api.async_create_heating_pdc_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
+        restored_pdc.adopt_publishers(previous_pdc)
         await restored_pdc.async_start()
 
     return unload_ok

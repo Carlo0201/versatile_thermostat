@@ -23,6 +23,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_component import EntityComponent
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
@@ -84,6 +85,7 @@ async def async_setup_entry(
     entities = None
 
     if vt_type == CONF_THERMOSTAT_CENTRAL_CONFIG:
+        _cleanup_removed_pdc_sensors(hass, entry)
         if entry.data.get(CONF_USE_CENTRAL_BOILER_FEATURE):
             entities = [
                 NbActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
@@ -1139,6 +1141,32 @@ class TotalPowerActiveDeviceForBoilerSensor(NbActiveDeviceForBoilerSensor):
         if self._cancel_listener_power is not None:
             self._cancel_listener_power()
             self._cancel_listener_power = None
+
+
+@callback
+def _cleanup_removed_pdc_sensors(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove only this entry's obsolete PDC diagnostics, never a climate entity.
+
+    A malformed section is not an intentional room removal. Preserve its registry
+    entries until the configuration can be read unambiguously.
+    """
+    section = entry.data.get(CONF_HEATING_ORCHESTRATION, {})
+    if not isinstance(section, dict):
+        return
+    runtime = section.get(CONF_HO_PDC_RUNTIME, {})
+    if not isinstance(runtime, dict):
+        return
+    rooms = runtime.get("rooms", [])
+    if not isinstance(rooms, list) or any(
+        not isinstance(room, dict) or not isinstance(room.get("room_key"), str) or not PDC_ROOM_KEY_PATTERN.fullmatch(room["room_key"]) for room in rooms
+    ):
+        return
+    prefix = f"{entry.entry_id}{HO_PDC_SENSOR_SUFFIX}"
+    keep = {prefix + room["room_key"] for room in rooms}
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain == "sensor" and entity.platform == DOMAIN and entity.unique_id.startswith(prefix) and entity.unique_id not in keep:
+            registry.async_remove(entity.entity_id)
 
 
 class HeatingOrchestrationPdcSensor(SensorEntity):

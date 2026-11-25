@@ -65,9 +65,10 @@ _LOGGER = get_vtherm_logger(__name__)
 CONF_PDC_RUNTIME = "pdc_runtime"
 #: Key (next to the sub-section) of the PDC mode: ``disabled`` | ``observe`` | ``control``.
 CONF_PDC_MODE = "pdc_mode"
-#: The PDC control is not available in this release (observe only): a ``control`` section is refused
-#: (error state, nothing is built) and the engine itself refuses to be built in ``control``.
-PDC_CONTROL_AVAILABLE = False
+#: Key (next to the sub-section) of the explicit confirmation of the PDC ``control`` mode.
+CONF_PDC_CONTROL_CONFIRMED = "pdc_control_confirmed"
+#: Release gate for the runtime. Control still requires a valid, explicitly confirmed configuration.
+PDC_CONTROL_AVAILABLE = True
 PDC_STORAGE_VERSION = 1
 PDC_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration_pdc"
 EVALUATION_INTERVAL = timedelta(seconds=15)
@@ -95,7 +96,14 @@ def extract_pdc_section(heating_orchestration_section: Any) -> Mapping[str, Any]
     if not isinstance(section, Mapping):
         return None
     mode = heating_orchestration_section.get(CONF_PDC_MODE)
-    return {**section, "mode": mode} if mode is not None else section
+    merged = {**section, "mode": mode} if mode is not None else dict(section)
+    merged.pop("control_confirmed", None)  # Only the explicit section-level confirmation is authoritative.
+    confirmed = heating_orchestration_section.get(CONF_PDC_CONTROL_CONFIRMED)
+    if confirmed is not None:
+        # The confirmation lives next to the sub-section (the flow writes it there); the parser
+        # expects it inside the section it validates, under its own key.
+        merged["control_confirmed"] = confirmed
+    return merged
 
 
 class _VThermInhibition:
@@ -299,6 +307,24 @@ class FeatureHeatingPdcManager:
         return self._states.get(room_key, (STATE_DISABLED, empty_pdc_diagnostics(room_key, self.mode)))
 
     # --------------------------------------------------------------- publishing
+
+    @callback
+    def adopt_publishers(self, previous: FeatureHeatingPdcManager) -> None:
+        """Reconnect surviving sensors after a failed platform unload.
+
+        Share the subscription containers: existing detach callbacks close over
+        the previous manager and must still remove the very same subscriptions.
+        The previous manager must have stopped before this transfer.
+        """
+        if previous.is_running or previous.entry_id != self.entry_id:
+            raise ValueError("publishers can only be adopted from the stopped manager of this entry")
+        self._publishers = previous._publishers
+        self._suspension_publishers = previous._suspension_publishers
+        for room_key, publishers in self._publishers.items():
+            for publisher in list(publishers):
+                publisher(*self.state(room_key))
+        for publisher in list(self._suspension_publishers):
+            publisher(*self.suspension_attributes())
 
     @callback
     def attach(self, room_key: str, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:  # pylint: disable=unused-argument

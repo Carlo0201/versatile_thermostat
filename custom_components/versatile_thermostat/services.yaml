@@ -411,6 +411,18 @@ recalibrate_valves:
                     min: 30
                     max: 300
 
+pdc_resume_automatic:
+    name: Resume automatic heat pump operation
+    description: End a room's native heat-pump override through the controller's confirmed shutdown sequence.
+    fields:
+        room_key:
+            name: Room key
+            description: Room key configured in the heat pump orchestration options.
+            required: true
+            example: camera_carlo
+            selector:
+                text:
+
 download_logs:
     name: Download logs
     description: Collect and download filtered logs for a VTherm entity.

@@ -207,6 +207,17 @@ def test_confirmed_creation_and_unreadable_state_keep_the_claim():
     assert late.reason == m.IGNORED_STALE and late.transaction == s.transaction
 
 
+def test_an_unreadable_flag_with_no_call_sent_never_claims_the_inhibition():
+    # The flag was unknown before the call and nothing was sent: whatever appears later is not ours.
+    s = start()
+    step = m.record_inhibition_result(s.transaction, s.reservation, T0 + 1.0, token=1, inhibited_after=None, transitioned=None, obs=obs(1, **OFF), call_sent=False)
+    assert not step.transaction.inhibition_owned
+    assert step.transaction.phase == m.PHASE_IDLE and step.transaction.failure == m.FAILURE_INHIBITION_FAILED
+    # a call that was sent and whose result is unreadable still keeps the claim (it may have been applied)
+    sent = m.record_inhibition_result(s.transaction, s.reservation, T0 + 1.0, token=1, inhibited_after=None, transitioned=None, call_sent=True)
+    assert sent.transaction == s.transaction
+
+
 def test_a_stop_confirmation_of_a_foreign_inhibition_does_not_start_the_pdc():
     s = start()
     foreign = dataclasses.replace(s.transaction, inhibition_owned=False)

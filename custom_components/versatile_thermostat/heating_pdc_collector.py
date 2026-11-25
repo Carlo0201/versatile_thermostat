@@ -65,6 +65,7 @@ from .heating_pdc_transaction import (
     PdcTransaction,
     PdcTransactionConfig,
 )
+from .room_override_policy import MODE_MANUAL as ROOM_MODE_MANUAL, MODE_OVERRIDE as ROOM_MODE_OVERRIDE
 
 SCHEMA_VERSION: Final = 1
 
@@ -105,6 +106,7 @@ KEY_MANAGED: Final = "managed_entity_id"
 KEY_OVERRIDE: Final = "override_entity_id"
 KEY_CYCLE: Final = "cycle_entity_id"
 KEY_EXTERNAL_OWNERS: Final = "external_owner_entity_ids"
+KEY_CONTROL_CONFIRMED: Final = "control_confirmed"
 KEY_SETPOINT_MIN: Final = "setpoint_min_c"
 KEY_MANUAL_BYPASS: Final = "manual_preset_bypass"
 
@@ -138,6 +140,7 @@ ERR_INVALID_VALUE: Final = "invalid_value"
 ERR_EXTERNAL_OWNERS_REQUIRED: Final = "external_owners_required"
 ERR_LEGACY_REQUIRED: Final = "legacy_helpers_required"
 ERR_CONTROL_NOT_AVAILABLE: Final = "control_not_available"
+ERR_CONTROL_NOT_CONFIRMED: Final = "control_not_confirmed"
 
 
 class PdcConfigError(ValueError):
@@ -318,6 +321,10 @@ def parse_pdc_config(section: Any, *, allow_control: bool = False) -> PdcConfig:
         raise PdcConfigError(ERR_UNSUPPORTED_MODE, KEY_MODE)
     if mode == MODE_CONTROL and not allow_control:
         raise PdcConfigError(ERR_CONTROL_NOT_AVAILABLE, KEY_MODE)
+    if mode == MODE_CONTROL and section.get(KEY_CONTROL_CONFIRMED) is not True:
+        # A stored ``control`` is not enough: the operator confirmation must be there too
+        # (the same rule as the boiler orchestration).
+        raise PdcConfigError(ERR_CONTROL_NOT_CONFIRMED, KEY_CONTROL_CONFIRMED)
     raw_rooms = section.get(KEY_ROOMS)
     if mode == MODE_DISABLED:
         return PdcConfig(MODE_DISABLED, "sensor.unconfigured", "select.unconfigured", ())
@@ -570,6 +577,18 @@ def collect_pdc_snapshot(
         cycle = _decode_cycle(cycle_view.state) if cycle_available else PdcCycle()
 
     inhibited, marker = read_inhibition(radiator.attributes)
+    room_manual_regulation = None
+    if "override_active" in radiator.attributes:
+        attributes = radiator.attributes
+        room_manual_regulation = (
+            radiator.state not in (None, STATE_UNKNOWN, STATE_UNAVAILABLE)
+            and attributes.get("override_pausing") is False
+            and attributes.get("override_ending") is False
+            and (
+                (attributes.get("override_active") is True and attributes.get("program_mode") == ROOM_MODE_OVERRIDE)
+                or (attributes.get("override_active") is False and attributes.get("program_mode") == ROOM_MODE_MANUAL)
+            )
+        )
     snapshot = PdcSnapshot(
         override=local.override if local.override is not None else override.state,
         managed=local.managed if local.managed is not None else managed.state,
@@ -599,6 +618,7 @@ def collect_pdc_snapshot(
         schedule_switches=tuple(lookup(states, switch).state for switch in room.schedule_switch_entity_ids),
         radiator_valve_mode=valve.state,
         radiator_inhibited=inhibited,
+        room_manual_regulation=room_manual_regulation,
     )
     missing = tuple(entity_id for entity_id in room.room_entity_ids() + (config.power_entity_id, config.central_mode_entity_id) if lookup(states, entity_id).state is None)
     return PdcCollection(

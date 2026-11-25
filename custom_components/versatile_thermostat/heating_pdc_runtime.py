@@ -154,6 +154,16 @@ MAX_PASS_ITERATIONS: Final = 8
 CLASSIFY_DELAY_S: Final = 1.0
 MIRROR_DOMAINS: Final = ("input_boolean",)
 PROTECTION_EMERGENCY_GAP_S: Final = 5.0
+# An external owner that is unknown/unavailable/missing (never ``on``) is tolerated this long;
+# after that only the safety OFF of a session of this room is allowed (see _safety_off_allowed).
+OWNER_GRACE_S: Final = 30.0
+# A stored timestamp in the future (clock not yet synchronised at start) is rechecked this often
+# instead of blocking the control until the next restart.
+CLOCK_RECHECK_S: Final = 60.0
+CLOCK_TOLERANCE_S: Final = 2.0
+STORE_NOTIFICATION_ID: Final = "pdc_store_unreadable"
+# Release attempts (one every ``release_retry_s``) after which the operator is told the radiator is not coming back.
+RELEASE_NOTIFY_ATTEMPTS: Final = 5
 SUSPEND_REPEAT_S: Final = 30.0
 SUSPEND_UNREACHABLE_S: Final = 90.0
 SUSPEND_MAX_ATTEMPTS: Final = 5
@@ -264,6 +274,8 @@ class _Room:
     last_denied: str | None = None
     blocked_by: tuple[str, ...] = ()
     release_held: bool = False
+    release_error: str | None = None
+    release_notified: bool = False
     suspend_state: str = SUSPENSION_NONE
     suspend_attempts: int = 0
     emergency_last: float | None = None
@@ -274,6 +286,10 @@ class _Room:
     mirrored_override: bool | None = None
     classify_pending: int = 0
     recovery_since: float | None = None
+    mirror_workers: dict[str, asyncio.Future[Any]] = field(default_factory=dict)
+    classify_cancels: list[Callable[[], None]] = field(default_factory=list)
+    owner_soft_since: float | None = None
+    owner_notified: bool = False
 
 
 class PdcRuntime:
@@ -295,6 +311,7 @@ class PdcRuntime:
         self._last_save_error: str | None = None
         self._rooms: dict[str, _Room] = {room.room_key: _Room(room, PdcTransaction(room.room_key)) for room in config.rooms}
         self._load_errors: list[str] = []
+        self._store_notified = False
         if stored is not None:
             self._load(stored)
 
@@ -378,11 +395,24 @@ class PdcRuntime:
             return
         self._stopped = True
         self._epoch += 1
+        pending: list[asyncio.Future[Any]] = []
         for room in self._rooms.values():
             self._cancel_wake(room)
+            for cancel in room.classify_cancels:
+                cancel()
+            room.classify_cancels.clear()
+            room.classify_pending = 0
             worker, room.worker = room.worker, None
             if worker is not None and not worker.done():
                 worker.cancel()
+                pending.append(worker)
+            for mirror in room.mirror_workers.values():
+                if not mirror.done():
+                    mirror.cancel()
+                    pending.append(mirror)
+            room.mirror_workers.clear()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
         if self._save_needed:
             await self._save()
 
@@ -410,6 +440,10 @@ class PdcRuntime:
         except Exception as err:  # noqa: BLE001 - never let the worker die silently
             _LOGGER.exception("PDC runtime: pass failed for %s", room.cfg.room_key)
             room.last_error = f"pass_error:{type(err).__name__}"
+            try:
+                self._publish_empty(room, STATE_ERROR, room.last_error, self._ports.now())
+            except Exception:  # noqa: BLE001 - a failing diagnostic must not kill the worker
+                _LOGGER.exception("PDC runtime: cannot publish the pass error for %s", room.cfg.room_key)
 
     async def async_drain(self) -> None:
         """Wait until every room worker is idle (tests and shutdown)."""
@@ -471,6 +505,9 @@ class PdcRuntime:
 
     async def _save(self) -> bool:
         """Persist now. Returns ``False`` (and records the error) on failure; never raises."""
+        if self._load_errors:
+            self._last_save_error = "store_recovery_blocked"
+            return False  # Preserve the unreadable store for diagnosis; never replace it with defaults.
         async with self._save_lock:
             self._save_needed = False
             try:
@@ -487,7 +524,7 @@ class PdcRuntime:
 
     def _load(self, data: Mapping[str, Any]) -> None:
         """Rebuild the persisted state; anything invalid is dropped and reported (never guessed)."""
-        if not isinstance(data, Mapping) or data.get("schema_version") != STORE_SCHEMA_VERSION:
+        if not isinstance(data, Mapping) or type(data.get("schema_version")) is not int or data.get("schema_version") != STORE_SCHEMA_VERSION:
             self._load_errors.append("store_invalid")
             return
         try:
@@ -495,12 +532,16 @@ class PdcRuntime:
         except (TypeError, ValueError):
             self._load_errors.append("reservation_invalid")
         susp = data.get("suspension")
+        if "suspension" in data and (not isinstance(susp, Mapping) or not isinstance(susp.get("active"), bool)):
+            self._load_errors.append("suspension_invalid")
         if isinstance(susp, Mapping) and isinstance(susp.get("active"), bool):
             reason = susp.get("reason")
             self._suspension = PdcSuspension(
                 susp["active"], to_timestamp(susp.get("since")), reason if isinstance(reason, str) else None, susp.get("hold_radiator_inhibition") is not False
             )
         rooms = data.get("rooms")
+        if not isinstance(rooms, Mapping):
+            self._load_errors.append("rooms_invalid")
         for key, room in self._rooms.items():
             item = rooms.get(key) if isinstance(rooms, Mapping) else None
             if isinstance(item, Mapping):
@@ -510,9 +551,16 @@ class PdcRuntime:
     def _load_room(self, key: str, room: _Room, item: Mapping[str, Any]) -> None:
         try:
             room.tx = transaction_from_dict(item.get("transaction"), key)
+            # A backwards clock jump must not extend a stored session indefinitely.
+            if any(
+                value is not None and (value < 0 or value > self._ports.now() + CLOCK_TOLERANCE_S) for value in (room.tx.started_at, room.tx.phase_started_at, room.tx.heat_sent_at)
+            ):
+                self._load_errors.append(f"transaction_clock_invalid:{key}")
         except (TypeError, ValueError):
             self._load_errors.append(f"transaction_invalid:{key}")
         stored = item.get("override")
+        if "override" in item and (not isinstance(stored, Mapping) or not isinstance(stored.get("active"), bool)):
+            self._load_errors.append(f"override_invalid:{key}")
         if isinstance(stored, Mapping) and isinstance(stored.get("active"), bool):
             source, provenance = stored.get("source"), stored.get("provenance")
             try:
@@ -568,8 +616,14 @@ class PdcRuntime:
         )
 
     def _other_view(self, states: Mapping[str, Any], room: _Room) -> PdcOtherView:
-        control = self._config.mode == MODE_CONTROL
-        views = [read_other_view(states, other, self._managed_of(self._rooms[other.room_key]) if control else None) for other in self._config.others(room.cfg.room_key)]
+        control = self._config.mode == MODE_CONTROL and not self._load_errors
+        views = []
+        for other in self._config.others(room.cfg.room_key):
+            other_room = self._rooms[other.room_key]
+            # A blocked room still belongs to its legacy controller. Its local
+            # idle transaction says nothing about a legacy start in progress.
+            local = control and (other_room.tx.phase != PHASE_IDLE or not self._blocked_by(other_room))
+            views.append(read_other_view(states, other, self._managed_of(other_room) if local else None))
         return aggregate_others(views)
 
     def _collect(self, room: _Room, now: float) -> PdcCollection:
@@ -611,49 +665,184 @@ class PdcRuntime:
         states = self._ports.states()
         return tuple(entity_id for entity_id in room.cfg.external_owner_entity_ids if lookup(states, entity_id).state != STATE_OFF)
 
+    def _interlock_lost(self, room: _Room) -> bool:
+        """Re-read the external owners right before an effect.
+
+        ``True`` means an owner is no longer confirmed ``off``: the caller must not send
+        anything. The reason is remembered so the next publication says why.
+        """
+        room.blocked_by = self._blocked_by(room)
+        return bool(room.blocked_by)
+
+    def _owner_blockers(self, room: _Room) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Owners not confirmed ``off``: ``(hard, soft)``.
+
+        Hard = in another state (``on``): the owner acts and the fork freezes.
+        Soft = unknown, unavailable or missing: nobody is known to act.
+        """
+        states = self._ports.states()
+        hard: list[str] = []
+        soft: list[str] = []
+        for entity_id in room.cfg.external_owner_entity_ids:
+            state = lookup(states, entity_id).state
+            if state == STATE_OFF:
+                continue
+            (soft if state in (None, STATE_UNKNOWN, STATE_UNAVAILABLE) else hard).append(entity_id)
+        return tuple(hard), tuple(soft)
+
+    def _track_owner_grace(self, room: _Room, now: float) -> None:
+        """Start (or reset) the tolerance clock: it runs only while every blocker is soft."""
+        hard, soft = self._owner_blockers(room)
+        if hard or not soft:
+            room.owner_soft_since = None
+        elif room.owner_soft_since is None:
+            room.owner_soft_since = now
+
+    def _safety_off_allowed(self, room: _Room) -> bool:
+        """Only the OFF of PDC VTherm / split, only for a session of this room, only after the tolerance, never with an owner ``on``."""
+        if room.tx.phase == PHASE_IDLE or room.owner_soft_since is None:
+            return False
+        hard, soft = self._owner_blockers(room)
+        if hard or not soft:
+            return False
+        return self._ports.now() - room.owner_soft_since >= OWNER_GRACE_S
+
+    @staticmethod
+    def _is_safety_off(room: _Room, domain: str, service: str, entity_id: str, data: dict[str, Any] | None) -> bool:
+        return domain == "climate" and service == "set_hvac_mode" and (data or {}).get("hvac_mode") == "off" and entity_id in (room.cfg.pdc_entity_id, room.cfg.split_entity_id)
+
+    def _only_clock_errors(self) -> bool:
+        return bool(self._load_errors) and all(error.startswith("transaction_clock_invalid:") for error in self._load_errors)
+
+    def _recheck_clock(self, now: float) -> None:
+        """Drop a ``transaction_clock_invalid`` error once the stored timestamps are no longer in the future.
+
+        Only a timestamp *ahead* of the clock is recoverable (the host clock was late at start and
+        has been corrected); a negative value stays an error. The transaction itself was loaded
+        unchanged, so recovery then runs through the normal safe path.
+        """
+        for key, room in self._rooms.items():
+            tag = f"transaction_clock_invalid:{key}"
+            if tag not in self._load_errors:
+                continue
+            values = (room.tx.started_at, room.tx.phase_started_at, room.tx.heat_sent_at)
+            if all(value is None or 0 <= value <= now + CLOCK_TOLERANCE_S for value in values):
+                self._load_errors.remove(tag)
+                _LOGGER.info("PDC runtime: the clock of %s is consistent again with the stored transaction", key)
+
+    def _notify_store(self, now: float) -> None:
+        """Tell the operator, once, that the persisted state cannot be used: nothing is controlled until it is resolved."""
+        if self._load_errors and not self._store_notified:
+            self._store_notified = True
+            self._ports.notify(
+                STORE_NOTIFICATION_ID,
+                "Pompa di calore: stato salvato non utilizzabile",
+                f"Il controllo PDC e' fermo: {self._load_errors[0]}. L'integrazione non puo' sapere se una pompa di calore e' accesa o il radiatore e' inibito. "
+                "Verificare a mano che split e VTherm PDC siano OFF e che il radiatore non sia inibito, poi ripristinare il file di stato da backup. "
+                "Non cancellare lo stato per forzare un ciclo.",
+            )
+        elif not self._load_errors and self._store_notified:
+            self._store_notified = False
+            self._ports.notify(STORE_NOTIFICATION_ID, None, None)
+
+    def _note_blocked(self, room: _Room, now: float) -> None:
+        """A blocked room: no evaluation wake except the end of the tolerance (and the retries of the safety OFF)."""
+        self._track_owner_grace(room, now)
+        self._cancel_wake(room)
+        since = room.owner_soft_since
+        pending = room.tx.phase != PHASE_IDLE and since is not None
+        expired = pending and now - since >= OWNER_GRACE_S
+        if pending:
+            at = since + OWNER_GRACE_S
+            self._schedule_wake(room, at if at > now else now + PROTECTION_EMERGENCY_GAP_S, now)
+        notification = f"{room.cfg.room_key}_pdc_owner_unavailable"
+        if expired and not room.owner_notified:
+            room.owner_notified = True
+            self._ports.notify(
+                notification,
+                "Pompa di calore: proprietario esterno non disponibile",
+                f"{room.cfg.room_key}: un'automazione o uno script dell'interblocco non e' disponibile da piu' di {int(OWNER_GRACE_S)} s con una sessione in corso. "
+                "Vengono inviati solo gli spegnimenti di sicurezza; il radiatore resta sospeso.",
+            )
+        elif not expired and room.owner_notified:
+            room.owner_notified = False
+            self._ports.notify(notification, None, None)
+
+    def _clear_owner_state(self, room: _Room) -> None:
+        room.owner_soft_since = None
+        if room.owner_notified:
+            room.owner_notified = False
+            self._ports.notify(f"{room.cfg.room_key}_pdc_owner_unavailable", None, None)
+
+    async def _safety_off(self, room: _Room) -> None:
+        """Owner unavailable beyond the tolerance with a session in flight: PDC VTherm and split OFF, nothing else, rate limited."""
+        if not self._safety_off_allowed(room):
+            return
+        now = self._ports.now()
+        if room.emergency_last is not None and now - room.emergency_last < PROTECTION_EMERGENCY_GAP_S:
+            return
+        room.emergency_last = now
+        for entity_id in (room.cfg.pdc_entity_id, room.cfg.split_entity_id):
+            if lookup(self._ports.states(), entity_id).state != STATE_OFF:
+                await self._command(room, "climate", "set_hvac_mode", entity_id, {"hvac_mode": "off"})
+
     # -------------------------------------------------------------- the pass
 
     async def async_run_pass(self, room_key: str) -> None:
         """One serialized evaluation of a room (the worker calls this; tests call it directly)."""
-        room = self._rooms[room_key]
-        if self._config.mode == MODE_DISABLED or self._stopped:
+        room = self._rooms.get(room_key)
+        if room is None or self._config.mode == MODE_DISABLED or self._stopped:
             return
         epoch = self._epoch
         now = self._ports.now()
-        if not room.inputs_ready:
-            states = self._ports.states()
-            mandatory = (
-                self._config.power_entity_id,
-                self._config.central_mode_entity_id,
-                room.cfg.radiator_entity_id,
-                room.cfg.radiator_valve_entity_id,
-                room.cfg.temperature_entity_id,
-                room.cfg.window_entity_id,
-                room.cfg.split_entity_id,
-                room.cfg.pdc_entity_id,
-                room.cfg.automatic_entity_id,
-                room.cfg.schedule_stop_entity_id,
-            )
-            missing = [entity_id for entity_id in mandatory if lookup(states, entity_id).state is None]
-            if missing or not self._ports.ready():
-                detail = "waiting_for_entities:" + ",".join(missing[:4]) if missing else "waiting_for_home_assistant"
-                self._publish_empty(room, STATE_STARTING, detail, now)
-                return
-            room.inputs_ready = True
+        # A pass that completes resolves the error of the previous one; a cause that is still
+        # there raises (and publishes) the error again in the pass that meets it. Persistent
+        # causes (store, load) keep their own fields and are never cleared here.
+        room.last_error = None
+        room.blocked_by = ()
         try:
+            if not room.inputs_ready:
+                states = self._ports.states()
+                mandatory = (
+                    self._config.power_entity_id,
+                    self._config.central_mode_entity_id,
+                    room.cfg.radiator_entity_id,
+                    room.cfg.radiator_valve_entity_id,
+                    room.cfg.temperature_entity_id,
+                    room.cfg.window_entity_id,
+                    room.cfg.split_entity_id,
+                    room.cfg.pdc_entity_id,
+                    room.cfg.automatic_entity_id,
+                    room.cfg.schedule_stop_entity_id,
+                )
+                missing = [entity_id for entity_id in mandatory if lookup(states, entity_id).state is None]
+                if missing or not self._ports.ready():
+                    detail = "waiting_for_entities:" + ",".join(missing[:4]) if missing else "waiting_for_home_assistant"
+                    self._publish_empty(room, STATE_STARTING, detail, now)
+                    return
+                room.inputs_ready = True
             if self._config.mode == MODE_OBSERVE:
                 self._observe_pass(room, now)
                 return
-            room.last_error = None
+            self._recheck_clock(now)
+            self._notify_store(now)
+            if self._load_errors:
+                self._publish_empty(room, STATE_ERROR, self._load_errors[0], now)
+                if self._only_clock_errors():
+                    self._schedule_wake(room, now + CLOCK_RECHECK_S, now)  # the clock may be corrected: look again, do not wait for a restart
+                return  # A corrupt store may contain ownership we cannot reconstruct.
             room.blocked_by = self._blocked_by(room)
             if room.blocked_by:
-                self._cancel_wake(room)
+                self._note_blocked(room, now)
                 self._publish_blocked(room, now)
+                await self._safety_off(room)
                 return
+            self._clear_owner_state(room)
             await self._control_pass(room, epoch)
-        except (TypeError, ValueError, KeyError) as err:  # defensive: never stop the engine, never command on a doubtful read
-            _LOGGER.error("PDC runtime: evaluation failed for %s: %s", room_key, err)
-            self._publish_empty(room, STATE_ERROR, f"evaluation_error:{type(err).__name__}", now)
+        except Exception as err:  # noqa: BLE001 - never stop the engine, never command on a doubtful read, never hide the error
+            _LOGGER.exception("PDC runtime: evaluation failed for %s", room_key)
+            room.last_error = f"evaluation_error:{type(err).__name__}"
+            self._publish_empty(room, STATE_ERROR, room.last_error, self._ports.now())
 
     def _observe_pass(self, room: _Room, now: float) -> None:
         collection = self._collect(room, now)
@@ -672,6 +861,8 @@ class PdcRuntime:
             collection = self._collect(room, now)
             if not await self._control_step(room, collection, now):
                 break
+            if room.blocked_by:
+                break  # ownership lost between two commands: freeze, the next pass re-reads
         if epoch != self._epoch:
             return
         if self._save_needed:
@@ -751,7 +942,8 @@ class PdcRuntime:
         if (old.phase == PHASE_IDLE) != (room.tx.phase == PHASE_IDLE):
             room.managed_changed_at = now
             room.ctx = EMPTY_CONTEXT
-            self._mirror_managed(room)
+            # The mirror is scheduled by _finish_pass, after the transaction has
+            # been saved. Never publish a managed session ahead of its durable claim.
         notification = f"{room.cfg.room_key}_pdc_return_unconfirmed"
         if room.tx.phase == PHASE_RETURN_UNCONFIRMED and old.phase != PHASE_RETURN_UNCONFIRMED:
             self._ports.notify(
@@ -759,6 +951,20 @@ class PdcRuntime:
                 "Pompa di calore: spegnimento non confermato",
                 f"{room.cfg.room_key}: lo split non conferma OFF. Il radiatore resta sospeso finche' lo spegnimento non e' confermato. Verificare il dispositivo e SmartThings.",
             )
+        release_notification = f"{room.cfg.room_key}_pdc_release_stuck"
+        if room.tx.phase == PHASE_RELEASING and room.tx.release_attempts >= RELEASE_NOTIFY_ATTEMPTS and not room.release_notified:
+            room.release_notified = True
+            self._ports.notify(
+                release_notification,
+                "Pompa di calore: radiatore non rilasciato",
+                f"{room.cfg.room_key}: dopo {room.tx.release_attempts} tentativi l'inibizione del radiatore non risulta rimossa ({room.release_error or 'non confermata'}). "
+                "La stanza resta senza riscaldamento a radiatore finche' non viene rilasciata: verificare il VTherm del radiatore.",
+            )
+        if room.tx.phase != PHASE_RELEASING:
+            room.release_error = None
+            if room.release_notified:
+                room.release_notified = False
+                self._ports.notify(release_notification, None, None)
         if room.tx.phase == PHASE_IDLE and old.phase != PHASE_IDLE:
             self._ports.notify(notification, None, None)
             room.release_held = False
@@ -803,6 +1009,8 @@ class PdcRuntime:
             return await self._return_step(room, collection, now, decision.stop_reason or FAILURE_STOP, exempt=False)
         if decision.action == PDC_ACTION_SET_SETPOINT and decision.setpoint is not None:
             # once per pass: the next event or tick reads it again (a setpoint the device rounds differently never loops)
+            if self._interlock_lost(room):
+                return False
             await self._command(room, "climate", "set_temperature", room.cfg.pdc_entity_id, {"temperature": decision.setpoint})
         return False
 
@@ -816,6 +1024,9 @@ class PdcRuntime:
 
     async def _start(self, room: _Room, collection: PdcCollection, now: float) -> bool:
         snapshot = collection.snapshot
+        if self._interlock_lost(room):
+            room.last_denied = "external_owner_active:" + ",".join(room.blocked_by)
+            return False
         if self._ports.inhibition_started(room.cfg.radiator_entity_id) is not True:
             room.last_denied = "inhibition_not_started"
             return False
@@ -843,12 +1054,17 @@ class PdcRuntime:
             room.last_error = self._last_save_error
             return False
         self._on_tx_changed(room, before_tx, now)
+        self._mirror_managed(room)  # The ownership claim is durable before the compatibility helper turns on.
         await self._execute(room, step.commands)
         return True
 
     # ----------------------------------------------------------- command execution
 
     async def _command(self, room: _Room, domain: str, service: str, entity_id: str, data: dict[str, Any] | None = None) -> bool:
+        if self._config.mode != MODE_CONTROL or self._stopped:
+            return False
+        if self._interlock_lost(room) and not (self._is_safety_off(room, domain, service, entity_id, data) and self._safety_off_allowed(room)):
+            return False
         payload = {"entity_id": entity_id, **(data or {})}
         try:
             await self._ports.call_service(domain, service, payload)
@@ -896,7 +1112,9 @@ class PdcRuntime:
         """Place the inhibition, then settle the ownership claim from what the VTherm reports (it may not have been us)."""
         entity_id = room.cfg.radiator_entity_id
         inhibited_now, marker_before = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
-        if inhibited_now is not True:  # somebody inhibited it since the request: the call would be a no-op that looks like ours
+        call_sent = False
+        if inhibited_now is False and not self._interlock_lost(room):
+            call_sent = True
             try:
                 await self._ports.set_inhibition(entity_id, True)
             except asyncio.CancelledError:
@@ -908,13 +1126,21 @@ class PdcRuntime:
             return
         inhibited_after, marker_after = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
         transitioned: bool | None = (marker_after != marker_before) if inhibited_after is True and marker_after is not None else None
-        if inhibited_now is True:
+        if inhibited_now is not False:
             transitioned = False
         now = self._ports.now()
         collection = self._collect(room, now)
         obs = build_observation(room.tx.token, collection.snapshot, now, room.cfg.policy, phase=room.tx.phase, override_off=not room.override.active)
         step = record_inhibition_result(
-            room.tx, self._reservation, now, token=cmd.token, inhibited_after=inhibited_after, transitioned=transitioned, obs=obs, config=self._config.transaction
+            room.tx,
+            self._reservation,
+            now,
+            token=cmd.token,
+            inhibited_after=inhibited_after,
+            transitioned=transitioned,
+            obs=obs,
+            config=self._config.transaction,
+            call_sent=call_sent,
         )
         if step.transaction != room.tx or step.commands:
             await self._apply(room, step, now)
@@ -957,50 +1183,94 @@ class PdcRuntime:
             return
         released = False
         try:
+            if self._interlock_lost(room):
+                return
             await self._ports.unset_inhibition(room.cfg.radiator_entity_id)
-            released = True
+            released = read_inhibition(lookup(self._ports.states(), room.cfg.radiator_entity_id).attributes)[0] is False
+            if not released:
+                room.last_error = room.release_error = "release_not_confirmed"
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001 - ownership is kept and the release retried
-            room.last_error = f"release_failed:{type(err).__name__}"
+            room.last_error = room.release_error = f"release_failed:{type(err).__name__}"
             _LOGGER.warning("PDC runtime: unset_inhibition(%s) failed: %s", room.cfg.radiator_entity_id, err)
         now = self._ports.now()
         await self._apply(room, confirm_release(room.tx, self._reservation, now, token=cmd.token, released=released, config=self._config.transaction), now)
 
     # --------------------------------------------------------------- mirrors
 
-    def _mirror(self, entity_id: str | None, on: bool) -> None:
-        """Compatibility copy of a legacy helper (``input_boolean``). Never a precondition, never read back in ``control``."""
+    def _mirror(self, room: _Room, entity_id: str | None, on: bool, field: str) -> None:
+        """Compatibility copy of a legacy helper (``input_boolean``), never a policy precondition.
+
+        The helper is written only in ``control`` and only while the interlock holds. The
+        ``mirrored_*`` field is settled only when the helper confirms the value, so a
+        failure or a block is retried by the next pass instead of being
+        silently forgotten. A write whose desired value changed meanwhile is not sent.
+        """
+        if self._config.mode != MODE_CONTROL or self._stopped:
+            return
         if not entity_id or entity_id.split(".", 1)[0] not in MIRROR_DOMAINS:
             return
-        if lookup(self._ports.states(), entity_id).state == (STATE_ON if on else STATE_OFF):
-            return  # already in sync: nothing is written (a blocked or untouched room stays untouched)
+        desired = STATE_ON if on else STATE_OFF
+        if lookup(self._ports.states(), entity_id).state == desired:
+            setattr(room, f"mirrored_{field}", on)  # already in sync: nothing is written
+            return
+        if self._interlock_lost(room):
+            return
+        previous = room.mirror_workers.get(field)
+        if previous is not None and not previous.done():
+            return  # At most one write in flight per helper, including across session changes.
         epoch = self._epoch
         domain = entity_id.split(".", 1)[0]
 
+        def _still_desired() -> bool:
+            # The write is stale only if the state it mirrors changed meanwhile: an OFF write is
+            # wanted exactly when the session (or the override) is over.
+            current = (room.tx.phase != PHASE_IDLE) if field == "managed" else room.override.active
+            return current == on
+
+        def _failed(error: str) -> None:
+            room.last_error = error
+            try:
+                self._publish(room, STATE_ERROR, room.decision, owner=OWNER_CONTROLLER, now=self._ports.now())
+            except Exception:  # noqa: BLE001 - the publisher itself must not leave an unhandled mirror task
+                _LOGGER.exception("PDC runtime: cannot publish the mirror error for %s", entity_id)
+
         async def _call() -> None:
-            if epoch != self._epoch:
+            if epoch != self._epoch or not _still_desired() or self._interlock_lost(room):
+                return  # the session changed while the write was pending: never write a stale value
+            if lookup(self._ports.states(), entity_id).state not in (STATE_ON, STATE_OFF):
+                _failed(f"mirror_unavailable:{entity_id}")
                 return
             try:
                 await self._ports.call_service(domain, "turn_on" if on else "turn_off", {"entity_id": entity_id})
             except asyncio.CancelledError:
                 raise
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:  # noqa: BLE001 - retried at the next pass, never fatal
+                _failed(f"mirror_failed:{entity_id}:{type(err).__name__}")
                 _LOGGER.debug("PDC runtime: mirror of %s failed: %s", entity_id, err)
+                return
+            if epoch != self._epoch:
+                return
+            if _still_desired() and lookup(self._ports.states(), entity_id).state == desired:
+                setattr(room, f"mirrored_{field}", on)
+            elif not _still_desired():
+                # The service was already in flight when the session changed. Reconcile
+                # after this task finishes so an old ON cannot overwrite the final OFF.
+                room.mirror_workers.pop(field, None)
+                self.request_evaluation(room.cfg.room_key)
+            else:
+                _failed(f"mirror_not_confirmed:{entity_id}")
 
-        self._ports.spawn(_call(), "pdc_runtime_mirror")
+        room.mirror_workers[field] = self._ports.spawn(_call(), "pdc_runtime_mirror")
 
     def _mirror_managed(self, room: _Room) -> None:
         on = room.tx.phase != PHASE_IDLE
-        if room.mirrored_managed != on:
-            room.mirrored_managed = on
-            self._mirror(room.cfg.managed_entity_id, on)
+        self._mirror(room, room.cfg.managed_entity_id, on, "managed")
 
     def _mirror_override(self, room: _Room) -> None:
         on = room.override.active
-        if room.mirrored_override != on:
-            room.mirrored_override = on
-            self._mirror(room.cfg.override_entity_id, on)
+        self._mirror(room, room.cfg.override_entity_id, on, "override")
 
     # --------------------------------------------------------- manual override (M5)
 
@@ -1038,10 +1308,14 @@ class PdcRuntime:
         split = room.cfg.split_entity_id
         old = None if old_state is None else device_state(lookup({split: old_state}, split))
         new = None if new_state is None else device_state(lookup({split: new_state}, split))
+        if old == new:
+            return
 
         room.classify_pending += 1
 
         def _classify() -> None:
+            if cancel in room.classify_cancels:
+                room.classify_cancels.remove(cancel)
             room.classify_pending = max(0, room.classify_pending - 1)
             if epoch != self._epoch or self._suspension.active:
                 self.request_evaluation(room.cfg.room_key)
@@ -1061,7 +1335,8 @@ class PdcRuntime:
                 self._mirror_override(room)
             self.request_evaluation(room.cfg.room_key)
 
-        self._ports.call_later(CLASSIFY_DELAY_S, _classify)
+        cancel = self._ports.call_later(CLASSIFY_DELAY_S, _classify)
+        room.classify_cancels.append(cancel)
 
     async def _override_step(self, room: _Room, collection: PdcCollection, now: float) -> bool:
         """Manual override: end of the override and protections first, then the session with the split."""
@@ -1090,6 +1365,9 @@ class PdcRuntime:
         return False
 
     async def _adopt(self, room: _Room, collection: PdcCollection, now: float) -> bool:
+        if self._interlock_lost(room):
+            room.last_denied = "external_owner_active:" + ",".join(room.blocked_by)
+            return False
         before_tx, before_res = room.tx, self._reservation
         step = adopt_manual(room.tx, self._reservation, now, radiator_inhibited_before=collection.snapshot.radiator_inhibited, config=self._config.transaction)
         if not step.accepted:
@@ -1102,6 +1380,8 @@ class PdcRuntime:
         snapshot, device = collection.snapshot, collection.split_device
         if device is None:
             return
+        if self._interlock_lost(room):
+            return
 
         wanted: list[tuple[str, dict[str, Any]]] = []
         temperature = device.temperature
@@ -1113,12 +1393,19 @@ class PdcRuntime:
         if wanted and room.last_sync is not None and room.last_sync[0] == signature and now - room.last_sync[1] < SYNC_REPEAT_S:
             return  # the same copy was sent a moment ago and the VTherm did not take it: do not hammer it
         for service, data in wanted:
+            # A previous service awaited the cloud. Do not copy an old HEAT over
+            # a newer manual OFF or a newer temperature from the split.
+            live = device_state(lookup(self._ports.states(), room.cfg.split_entity_id))
+            if live is None or (live.temperature, live.state) != signature or not room.override.active:
+                return
             await self._command(room, "climate", service, room.cfg.pdc_entity_id, data)
         if wanted:
             room.last_sync = (signature, now)
 
     async def _emergency_off(self, room: _Room, snapshot: PdcSnapshot, now: float, min_gap_s: float) -> bool:
         """PDC VTherm OFF, then the split OFF at once, without a session (protections and suspension). Rate limited."""
+        if self._interlock_lost(room):
+            return False  # an external owner took over: it is responsible, the fork does not write
         if room.emergency_last is not None and now - room.emergency_last < min_gap_s:
             return False
         room.emergency_last = now
@@ -1141,7 +1428,7 @@ class PdcRuntime:
     async def async_resume_automatic(self, room_key: str) -> bool:
         """The user asks to leave the manual override now (baseline ``riprendi_automatico``). ``False`` when there is nothing to resume."""
         room = self._rooms.get(room_key)
-        if room is None or not self.is_controlling or not room.override.active:
+        if room is None or not self.is_controlling or self._load_errors or self._blocked_by(room) or not room.override.active:
             return False
         room.resume_pending = True
         self._save_needed = True
@@ -1228,6 +1515,18 @@ class PdcRuntime:
     # ------------------------------------------------------------- diagnostics
 
     def _finish_pass(self, room: _Room, now: float) -> None:
+        if room.blocked_by:
+            # An owner came back during the pass: no more effects, the room is frozen and says why.
+            self._note_blocked(room, now)
+            self._publish_blocked(room, now)
+            return
+        self._mirror_managed(room)
+        self._mirror_override(room)
+        if room.blocked_by:
+            # The mirror re-read the owners: the same freeze applies before publishing a normal state.
+            self._note_blocked(room, now)
+            self._publish_blocked(room, now)
+            return
         decision = room.decision
         room.generation += 1
         wake: list[float | None] = [next_wakeup(room.tx, now, self._config.transaction)]
@@ -1252,7 +1551,13 @@ class PdcRuntime:
         self._publish(room, state, None if in_flight else decision, owner=OWNER_CONTROLLER, now=now)
 
     def _publish(self, room: _Room, state: str, decision: PdcDecision | None, *, owner: str | None, now: float) -> None:
-        error = room.last_error or self._last_save_error or (self._load_errors[0] if self._load_errors else None) or room.last_denied
+        error = (
+            room.last_error
+            or (room.release_error if room.tx.phase == PHASE_RELEASING else None)
+            or self._last_save_error
+            or (self._load_errors[0] if self._load_errors else None)
+            or room.last_denied
+        )
         attributes = build_pdc_diagnostics(
             room_key=room.cfg.room_key,
             mode=self._config.mode,

@@ -251,7 +251,7 @@ class CommandEvent:
 
 @dataclass(frozen=True, slots=True)
 class ModeBudget:
-    """Sends already spent for one mode inside ``BUDGET_WINDOW_S`` (not persisted: a restart resets it)."""
+    """Sends already spent for one mode inside ``BUDGET_WINDOW_S``."""
 
     mode: str
     attempts: int
@@ -549,7 +549,9 @@ def step(record: CommandRecord | None, inputs: CommandInputs, memory: tuple[Mode
             detail = "shutdown" if ownership.is_owner else ownership.block_reason
             current = replace(current, status=STATUS_CANCELLED, retry_at=None)
             events.append(CommandEvent(EVENT_CANCELLED, current.mode, current.attempts, detail))
-            mem = _track(mem, record, current, now)
+            # Shutdown cancels callbacks, not the sends already spent. Otherwise
+            # repeated HA restarts would grant a new budget at every boot.
+            mem = _track(mem, None, record, now) if inputs.shutting_down else _track(mem, record, current, now)
         elif current is not None and current.is_exhausted and not inputs.shutting_down and inputs.master_mode not in MASTER_KNOWN_MODES:
             # The master left its known modes (unavailable...): the observed state changed, so the
             # exhausted request is released. A later send has a fresh budget after a short wait, so
@@ -622,6 +624,50 @@ def command_diagnostics(record: CommandRecord | None, ownership: Ownership, cont
 
 
 # ------------------------------------------------------------------ persistence
+
+
+def budget_to_list(memory: tuple[ModeBudget, ...]) -> list[dict[str, Any]]:
+    """Compatible addition to the v2 store, preserving per-mode retry budgets."""
+    return [{"mode": item.mode, "attempts": item.attempts, "last_at": item.last_at, "retry_at": item.retry_at} for item in memory]
+
+
+def restore_budget(value: Any, record: CommandRecord | None, now: float) -> tuple[ModeBudget, ...]:
+    """Restore the bounded window and recover an in-flight send saved before its next evaluation.
+
+    An invalid budget is held at the maximum for the remaining window instead of
+    granting fresh sends. A missing field is compatible with old observer stores.
+    A known confirmation or an explicitly cancelled request retains its old semantics.
+    """
+    if _finite(now) is None:
+        raise ValueError("now must be finite")
+    memory: tuple[ModeBudget, ...] = ()
+    if record is not None and record.attempts > 0 and record.at > now:
+        return (ModeBudget(record.mode, MAX_SENDS, now),)
+    if value is not None:
+        if not isinstance(value, list) or len(value) > len(COMMAND_MODES):
+            return tuple(ModeBudget(mode, MAX_SENDS, now) for mode in COMMAND_MODES)
+        for item in value:
+            if not isinstance(item, Mapping) or item.get("mode") not in COMMAND_MODES:
+                return tuple(ModeBudget(mode, MAX_SENDS, now) for mode in COMMAND_MODES)
+            mode, attempts = item["mode"], item.get("attempts")
+            at, retry = _finite(item.get("last_at")), _finite(item.get("retry_at"))
+            valid = not isinstance(attempts, bool) and isinstance(attempts, int) and 0 <= attempts <= MAX_SENDS
+            valid = valid and at is not None and 0 <= at <= now and (item.get("retry_at") is None or retry is not None and retry >= at)
+            if not valid:
+                memory = _set_budget(memory, ModeBudget(mode, MAX_SENDS, now))
+            elif now - at < BUDGET_WINDOW_S:
+                previous = _budget_of(memory, mode)
+                if previous is not None:  # Duplicate declarations are not evidence of a fresh allowance.
+                    memory = _set_budget(memory, ModeBudget(mode, MAX_SENDS, now))
+                else:
+                    memory = _set_budget(memory, ModeBudget(mode, attempts, at, retry))
+    if record is not None and record.status not in (STATUS_CONFIRMED, STATUS_CANCELLED) and record.attempts > 0 and 0 <= now - record.at < BUDGET_WINDOW_S:
+        previous = _budget_of(memory, record.mode)
+        if previous is None or previous.attempts < record.attempts:
+            memory = _set_budget(memory, ModeBudget(record.mode, record.attempts, record.at, now + RELEASE_WAIT_S if record.attempts < MAX_SENDS else None))
+        elif record.status == STATUS_UNCONFIRMED and previous.retry_at is None and previous.attempts < MAX_SENDS:
+            memory = _set_budget(memory, ModeBudget(previous.mode, previous.attempts, previous.last_at, now + RELEASE_WAIT_S))
+    return memory
 
 
 def record_to_dict(record: CommandRecord | None) -> dict[str, Any] | None:

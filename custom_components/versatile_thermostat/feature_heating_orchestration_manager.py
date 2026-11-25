@@ -115,6 +115,8 @@ from .heating_boiler_command import (
     Ownership,
     SettlingState,
     command_diagnostics,
+    budget_to_list,
+    restore_budget,
     evaluate_ownership,
     migrate_store_data,
     on_service_completed,
@@ -327,7 +329,7 @@ class FeatureHeatingOrchestrationManager:
         self._send_task: asyncio.Task | None = None
         self._send_mode: str | None = None
         self._send_seq = 0
-        self._budget: tuple = ()  # per-mode send budget (not persisted)
+        self._budget: tuple = ()  # per-mode send budget, persisted with the command record
         self._abandon_streak = 0  # consecutive abandoned sends: at most one immediate re-evaluation
         self._inflight_id: int | None = None  # send id of the request whose service call is running
 
@@ -421,6 +423,15 @@ class FeatureHeatingOrchestrationManager:
         return self._settling.settled
 
     # --------------------------------------------------------------- publishing
+
+    @callback
+    def adopt_publishers(self, previous: FeatureHeatingOrchestrationManager) -> None:
+        """Reconnect surviving sensors to a replacement after a failed unload."""
+        if previous.is_running or previous.entry_id != self.entry_id:
+            raise ValueError("publishers require the stopped manager of this entry")
+        self._publishers = previous._publishers
+        self._own_entity_ids = previous._own_entity_ids
+        self._publish(self._state, self._attributes)
 
     @callback
     def attach(self, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:
@@ -583,12 +594,18 @@ class FeatureHeatingOrchestrationManager:
         self._legacy_seeded = bool(data.get("legacy_seeded", False))
         # A request that was not confirmed before the stop is never considered confirmed.
         self._record, self._startup_events = restart_record(record_from_dict(data.get(STORE_COMMAND_KEY)))
+        self._budget = restore_budget(data.get("command_budget"), self._record, self._clock())
         self._last_saved_key = self._persistent_key()
         if self._startup_events:
             self._last_saved_key = None  # the unconfirmed status must be saved
 
     def _persistent_key(self) -> tuple[Any, ...]:
-        return (json.dumps(cycle_to_dict(self._cycle), sort_keys=True), json.dumps(record_to_dict(self._record), sort_keys=True), self._legacy_seeded)
+        return (
+            json.dumps(cycle_to_dict(self._cycle), sort_keys=True),
+            json.dumps(record_to_dict(self._record), sort_keys=True),
+            self._legacy_seeded,
+            json.dumps(budget_to_list(self._budget), sort_keys=True),
+        )
 
     def _store_data(self) -> dict[str, Any]:
         self._last_saved_key = self._persistent_key()
@@ -600,6 +617,7 @@ class FeatureHeatingOrchestrationManager:
             "first_origin": self._cycle_origin,
             "saved_at": self._clock(),
             STORE_COMMAND_KEY: record_to_dict(self._record),
+            "command_budget": budget_to_list(self._budget),
         }
 
     @callback
@@ -858,13 +876,14 @@ class FeatureHeatingOrchestrationManager:
     def _apply_step(self, step: CommandStep, ownership: Ownership, *, reason: str | None = None, valves: int | None = None) -> None:
         """Adopt the record of a step, log its transitions and cancel a send that no longer applies."""
         previous = self._record
+        previous_budget = self._budget
         self._record = step.record
         self._budget = step.memory
         self._ownership = ownership
         self._control_status = step.control_status
         for event in step.events:
             self._log_event(event, reason=reason, valves=valves)
-        if step.record != previous:
+        if step.record != previous or step.memory != previous_budget:
             self._schedule_save(STORE_COMMAND_DELAY_S)
         task = self._send_task
         inflight = self._inflight_id

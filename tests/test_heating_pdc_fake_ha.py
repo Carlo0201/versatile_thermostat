@@ -11,6 +11,7 @@ Run with only pytest installed::
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +21,9 @@ HARNESS = REPO_ROOT / "plans" / "heating-orchestration-2026-11-24" / "pdc" / "fa
 
 
 def test_the_manager_scenarios_pass_against_the_fake_home_assistant():
-    done = subprocess.run([sys.executable, "-I", str(HARNESS)], capture_output=True, text=True, cwd=REPO_ROOT, check=False)
+    runner = os.environ.get("VTHERM_OFFLINE_TEST_RUNNER")
+    command = [sys.executable, runner, "--script", str(HARNESS)] if runner else [sys.executable, "-I", str(HARNESS)]
+    done = subprocess.run(command, capture_output=True, text=True, cwd=REPO_ROOT, check=False, timeout=60)
     assert done.returncode == 0, (done.stdout + done.stderr)[-3000:]
     summary = json.loads(done.stdout.strip().splitlines()[-1])
     assert summary["failed"] == 0 and summary["checks"] >= 35

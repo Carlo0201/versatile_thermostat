@@ -437,7 +437,7 @@ async def scenario_control_is_refused(mod):
         )
         check(
             "control: the error is explicit",
-            attrs["last_error"] == "config_control_not_available:mode" and manager.config_error == "config_control_not_available:mode",
+            attrs["last_error"] == "config_control_not_confirmed:control_confirmed" and manager.config_error == attrs["last_error"],
             str(attrs["last_error"]),
         )
         await advance(hass, 300)
@@ -448,9 +448,27 @@ async def scenario_control_is_refused(mod):
         result = await manager.async_suspend("x")
         check("control: the suspension entry point is refused", result.accepted is False and hass.services.calls == [])
         check("control: no manual resume either", await manager.async_resume_automatic("carlo") is False)
-    # the engine itself cannot be built in control from the manager's host
-    config = mod.parse_pdc_config(section("observe")["pdc_runtime"] | {"mode": "observe"})
-    check("control: constant is off", mod.PDC_CONTROL_AVAILABLE is False and config.mode == "observe")
+
+
+async def scenario_confirmed_control_waits_for_the_legacy_owner(mod):
+    hass = FakeHass(Clock(NOW))
+    seed(hass)
+    hass.states.async_set("automation.chooser", "on")
+    hass.states.async_set("input_boolean.auto_carlo", "off")
+    runtime = pdc_runtime(("carlo",))
+    runtime["rooms"][0]["external_owner_entity_ids"] = ["automation.chooser"]
+    manager, inhibition = await make(mod, hass, section("control", pdc_control_confirmed=True, pdc_runtime=runtime))
+    await manager.async_start()
+    await advance(hass, 20)
+    state, attrs = manager.state("carlo")
+    check("control: confirmed release starts in control", manager.is_running and manager.mode == "control")
+    check("control: owner on blocks the runtime", state == "blocked" and attrs["blocked_by"] == ["automation.chooser"])
+    check("control: blocked sends no command", not hass.services.calls and not inhibition.calls)
+    hass.states.async_set("automation.chooser", "off")
+    await advance(hass, 20)
+    state, attrs = manager.state("carlo")
+    check("control: owner off lets the native controller take over", state != "blocked" and attrs["owner"] == "controller")
+    await manager.async_stop()
 
 
 async def scenario_modes_and_sections(mod):
@@ -509,14 +527,36 @@ async def scenario_stop_during_start_does_not_publish_late(mod):
     check("stop racing the start leaves a stopped manager", not manager.is_running)
 
 
+async def scenario_publishers_survive_failed_unload(mod):
+    hass = FakeHass(Clock(NOW))
+    seed(hass)
+    old, _ = await make(mod, hass, section())
+    pushes = []
+    detach = old.attach("carlo", lambda state, attrs: pushes.append((state, attrs)))
+    await old.async_start()
+    await run_loop()
+    await old.async_stop()
+    restored, _ = await make(mod, hass, section())
+    restored.adopt_publishers(old)
+    await restored.async_start()
+    await advance(hass, 30)
+    check("failed unload: restored manager updates surviving sensors", pushes[-1][1].get("evaluated_at") == hass.clock.now)
+    detach()
+    check("failed unload: original detach removes restored subscription", restored._publishers["carlo"] == [])
+    await restored.async_stop()
+    check("failed unload: old and restored managers stop all listeners", hass.state_listeners == [])
+
+
 async def main_async():
     mod = install_fakes()
     scenarios = [
         scenario_observe_sends_nothing,
         scenario_control_is_refused,
+        scenario_confirmed_control_waits_for_the_legacy_owner,
         scenario_modes_and_sections,
         scenario_reload_and_stop,
         scenario_stop_during_start_does_not_publish_late,
+        scenario_publishers_survive_failed_unload,
     ]
     for scenario in scenarios:
         try:

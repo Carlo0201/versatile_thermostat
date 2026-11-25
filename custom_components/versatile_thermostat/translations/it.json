@@ -466,7 +466,7 @@
             },
             "heating_pdc": {
                 "title": "Orchestrazione pompa di calore (PDC)",
-                "description": "Osservazione delle decisioni della pompa di calore. `observe` pubblica un'entità diagnostica per stanza con l'azione proposta: non viene mai inviato un comando e nessun radiatore viene inibito. Il controllo non è disponibile in questa versione. Le stanze si aggiungono nel passo successivo.",
+                "description": "Osservazione delle decisioni della pompa di calore. `observe` pubblica un'entità diagnostica per stanza con l'azione proposta: non viene mai inviato un comando e nessun radiatore viene inibito. `control` è offerto solo quando la versione lo consente e richiede una conferma esplicita; i proprietari esterni devono essere spenti. Le stanze si aggiungono nel passo successivo.",
                 "data": {
                     "pdc_mode": "Modalità PDC",
                     "power_entity_id": "Sensore potenza di casa",
@@ -505,6 +505,7 @@
                     "cycle_entity_id": "Helper ciclo PDC (input_text)",
                     "override_timer_entity_id": "Timer regolazione manuale",
                     "schedule_switch_entity_ids": "Interruttori dei programmi",
+                    "external_owner_entity_ids": "Altri proprietari dell'impianto (automazioni/script)",
                     "setpoint_min_c": "Setpoint minimo dello split (C)",
                     "manual_preset_bypass": "Accetta la regolazione manuale Oikos"
                 },
@@ -515,6 +516,7 @@
                     "cycle_entity_id": "Facoltativo: letto in observe come ciclo HEAT/OFF confermato",
                     "override_timer_entity_id": "Solo per le stanze che accettano la regolazione manuale Oikos",
                     "schedule_switch_entity_ids": "Solo per le stanze che accettano la regolazione manuale Oikos",
+                    "external_owner_entity_ids": "Dichiarati per il controllo: finché uno non è esattamente off, la stanza resta bloccata e non viene inviato nulla. Una lista vuota è ammessa solo se dichiarata.",
                     "setpoint_min_c": "16 per Camera Carlo, 18 per Camera Diego Luisa",
                     "manual_preset_bypass": "Camera Carlo: durante la regolazione manuale è accettato anche un preset diverso da none/eco/comfort/boost"
                 }
@@ -524,6 +526,16 @@
                 "description": "Seleziona le stanze da rimuovere. Stanze configurate: {rooms}",
                 "data": {
                     "pdc_rooms_to_remove": "Stanze da rimuovere"
+                }
+            },
+            "heating_pdc_control_confirm": {
+                "title": "Conferma il controllo della pompa di calore",
+                "description": "Questa integrazione comanderà il termostato della pompa di calore di ogni stanza configurata (heat / off) e lo split.\n\n1. Controller esterni che devono essere spenti, mai spenti da questa integrazione: {rooms}. Finché non sono tutti spenti non viene inviato nulla.\n2. Solo un controllo già acquisito e salvato può inviare: una prenotazione o una proprietà persa blocca ogni comando in sospeso.\n3. Se un controller esterno viene riacceso, ogni comando in sospeso viene annullato e non viene inviato nulla.\n\nPer smettere di controllare, scegli observe o disabled nel passo precedente.",
+                "data": {
+                    "confirm_pdc_control": "Confermo: questa integrazione può comandare la pompa di calore"
+                },
+                "data_description": {
+                    "confirm_pdc_control": "Obbligatorio per attivare la modalità control"
                 }
             }
         },
@@ -566,7 +578,8 @@
             "pdc_too_many_rooms": "Troppe stanze",
             "pdc_invalid_value": "Valore non valido",
             "pdc_external_owners_required": "Gli altri proprietari dell'impianto vanno dichiarati",
-            "pdc_legacy_helpers_required": "Gli helper di sessione e override sono obbligatori in observe"
+            "pdc_legacy_helpers_required": "Gli helper di sessione e override sono obbligatori in observe",
+            "pdc_control_not_confirmed": "Conferma l'attivazione, oppure torna indietro e scegli observe"
         },
         "abort": {
             "already_configured": "Il dispositivo è gia configurato"
@@ -1035,7 +1048,7 @@
             },
             "heating_pdc": {
                 "title": "Orchestrazione pompa di calore (PDC)",
-                "description": "Osservazione delle decisioni della pompa di calore. `observe` pubblica un'entità diagnostica per stanza con l'azione proposta: non viene mai inviato un comando e nessun radiatore viene inibito. Il controllo non è disponibile in questa versione. Le stanze si aggiungono nel passo successivo.",
+                "description": "Osservazione delle decisioni della pompa di calore. `observe` pubblica un'entità diagnostica per stanza con l'azione proposta: non viene mai inviato un comando e nessun radiatore viene inibito. `control` è offerto solo quando la versione lo consente e richiede una conferma esplicita; i proprietari esterni devono essere spenti. Le stanze si aggiungono nel passo successivo.",
                 "data": {
                     "pdc_mode": "Modalità PDC",
                     "power_entity_id": "Sensore potenza di casa",
@@ -1074,6 +1087,7 @@
                     "cycle_entity_id": "Helper ciclo PDC (input_text)",
                     "override_timer_entity_id": "Timer regolazione manuale",
                     "schedule_switch_entity_ids": "Interruttori dei programmi",
+                    "external_owner_entity_ids": "Altri proprietari dell'impianto (automazioni/script)",
                     "setpoint_min_c": "Setpoint minimo dello split (C)",
                     "manual_preset_bypass": "Accetta la regolazione manuale Oikos"
                 },
@@ -1084,6 +1098,7 @@
                     "cycle_entity_id": "Facoltativo: letto in observe come ciclo HEAT/OFF confermato",
                     "override_timer_entity_id": "Solo per le stanze che accettano la regolazione manuale Oikos",
                     "schedule_switch_entity_ids": "Solo per le stanze che accettano la regolazione manuale Oikos",
+                    "external_owner_entity_ids": "Dichiarati per il controllo: finché uno non è esattamente off, la stanza resta bloccata e non viene inviato nulla. Una lista vuota è ammessa solo se dichiarata.",
                     "setpoint_min_c": "16 per Camera Carlo, 18 per Camera Diego Luisa",
                     "manual_preset_bypass": "Camera Carlo: durante la regolazione manuale è accettato anche un preset diverso da none/eco/comfort/boost"
                 }
@@ -1093,6 +1108,16 @@
                 "description": "Seleziona le stanze da rimuovere. Stanze configurate: {rooms}",
                 "data": {
                     "pdc_rooms_to_remove": "Stanze da rimuovere"
+                }
+            },
+            "heating_pdc_control_confirm": {
+                "title": "Conferma il controllo della pompa di calore - {name}",
+                "description": "Questa integrazione comanderà il termostato della pompa di calore di ogni stanza configurata (heat / off) e lo split.\n\n1. Controller esterni che devono essere spenti, mai spenti da questa integrazione: {rooms}. Finché non sono tutti spenti non viene inviato nulla.\n2. Solo un controllo già acquisito e salvato può inviare: una prenotazione o una proprietà persa blocca ogni comando in sospeso.\n3. Se un controller esterno viene riacceso, ogni comando in sospeso viene annullato e non viene inviato nulla.\n\nPer smettere di controllare, scegli observe o disabled nel passo precedente.",
+                "data": {
+                    "confirm_pdc_control": "Confermo: questa integrazione può comandare la pompa di calore"
+                },
+                "data_description": {
+                    "confirm_pdc_control": "Obbligatorio per attivare la modalità control"
                 }
             }
         },
@@ -1135,7 +1160,8 @@
             "pdc_too_many_rooms": "Troppe stanze",
             "pdc_invalid_value": "Valore non valido",
             "pdc_external_owners_required": "Gli altri proprietari dell'impianto vanno dichiarati",
-            "pdc_legacy_helpers_required": "Gli helper di sessione e override sono obbligatori in observe"
+            "pdc_legacy_helpers_required": "Gli helper di sessione e override sono obbligatori in observe",
+            "pdc_control_not_confirmed": "Conferma l'attivazione, oppure torna indietro e scegli observe"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -1230,7 +1256,8 @@
         "heating_pdc_mode": {
             "options": {
                 "disabled": "Disattivata",
-                "observe": "Solo osservazione (nessun comando)"
+                "observe": "Solo osservazione (nessun comando)",
+                "control": "Controllo (comanda le stanze della pompa di calore, con conferma)"
             }
         }
     },
@@ -1419,6 +1446,16 @@
                 "code": {
                     "name": "Codice di blocco",
                     "description": "Le code de verrouillage optionnel"
+                }
+            }
+        },
+        "pdc_resume_automatic": {
+            "name": "Riprendi automatico della pompa di calore",
+            "description": "Termina l'override nativo della stanza tramite la sequenza di spegnimento con conferma.",
+            "fields": {
+                "room_key": {
+                    "name": "Chiave stanza",
+                    "description": "Chiave della stanza configurata nelle opzioni di orchestrazione PDC."
                 }
             }
         },

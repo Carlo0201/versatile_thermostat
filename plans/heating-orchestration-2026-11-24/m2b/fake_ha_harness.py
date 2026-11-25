@@ -12,6 +12,7 @@ import asyncio
 import importlib
 import importlib.util
 import json
+import os
 import sys
 import types
 from datetime import datetime, timezone
@@ -19,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[3]
-COMPONENT = REPO / "custom_components" / "versatile_thermostat"
+COMPONENT = Path(os.environ["BOILER_COMPONENT_DIR"]) if os.environ.get("BOILER_COMPONENT_DIR") else REPO / "custom_components" / "versatile_thermostat"
 
 
 # ------------------------------------------------------------------ fake homeassistant

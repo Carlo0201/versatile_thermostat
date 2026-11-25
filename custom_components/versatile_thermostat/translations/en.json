@@ -478,7 +478,7 @@
             },
             "heating_pdc": {
                 "title": "Heat pump (PDC) orchestration",
-                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. The control is not available in this release. Rooms are added in the next step.",
+                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. `control` is offered only when the release allows it and requires an explicit confirmation; the external owners must be off. Rooms are added in the next step.",
                 "data": {
                     "pdc_mode": "PDC mode",
                     "power_entity_id": "House power sensor",
@@ -517,6 +517,7 @@
                     "cycle_entity_id": "PDC cycle helper (input_text)",
                     "override_timer_entity_id": "Manual regulation timer",
                     "schedule_switch_entity_ids": "Program switches",
+                    "external_owner_entity_ids": "Other owners of the plant (automations/scripts)",
                     "setpoint_min_c": "Minimum split setpoint (C)",
                     "manual_preset_bypass": "Accept the manual Oikos regulation"
                 },
@@ -527,6 +528,7 @@
                     "cycle_entity_id": "Optional: read in observe as the confirmed HEAT/OFF cycle",
                     "override_timer_entity_id": "Only for the rooms that accept the manual Oikos regulation",
                     "schedule_switch_entity_ids": "Only for the rooms that accept the manual Oikos regulation",
+                    "external_owner_entity_ids": "Declared for the control: while one of them is not exactly off, the room stays blocked and nothing is sent. An empty list is allowed only if declared.",
                     "setpoint_min_c": "16 for Camera Carlo, 18 for Camera Diego Luisa",
                     "manual_preset_bypass": "Camera Carlo: a preset outside none/eco/comfort/boost is accepted during the manual regulation"
                 }
@@ -536,6 +538,16 @@
                 "description": "Select the rooms to remove. Configured rooms: {rooms}",
                 "data": {
                     "pdc_rooms_to_remove": "Rooms to remove"
+                }
+            },
+            "heating_pdc_control_confirm": {
+                "title": "Confirm the heat pump control",
+                "description": "This integration will command the heat pump thermostat of every configured room (heat / off) and the split.\n\n1. External controllers that must be off, never switched by this integration: {rooms}. Until all of them are off nothing is sent.\n2. Only a control that has already been claimed and stored can send: a lost claim or a lost ownership blocks every pending command.\n3. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_pdc_control": "I confirm: this integration may command the heat pump"
+                },
+                "data_description": {
+                    "confirm_pdc_control": "Required to enable the control mode"
                 }
             }
         },
@@ -578,7 +590,8 @@
             "pdc_too_many_rooms": "Too many rooms",
             "pdc_invalid_value": "Invalid value",
             "pdc_external_owners_required": "The other owners of the plant must be declared",
-            "pdc_legacy_helpers_required": "The session and override helpers are required in observe"
+            "pdc_legacy_helpers_required": "The session and override helpers are required in observe",
+            "pdc_control_not_confirmed": "Confirm the activation, or go back and choose observe"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -1059,7 +1072,7 @@
             },
             "heating_pdc": {
                 "title": "Heat pump (PDC) orchestration",
-                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. The control is not available in this release. Rooms are added in the next step.",
+                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. `control` is offered only when the release allows it and requires an explicit confirmation; the external owners must be off. Rooms are added in the next step.",
                 "data": {
                     "pdc_mode": "PDC mode",
                     "power_entity_id": "House power sensor",
@@ -1098,6 +1111,7 @@
                     "cycle_entity_id": "PDC cycle helper (input_text)",
                     "override_timer_entity_id": "Manual regulation timer",
                     "schedule_switch_entity_ids": "Program switches",
+                    "external_owner_entity_ids": "Other owners of the plant (automations/scripts)",
                     "setpoint_min_c": "Minimum split setpoint (C)",
                     "manual_preset_bypass": "Accept the manual Oikos regulation"
                 },
@@ -1108,6 +1122,7 @@
                     "cycle_entity_id": "Optional: read in observe as the confirmed HEAT/OFF cycle",
                     "override_timer_entity_id": "Only for the rooms that accept the manual Oikos regulation",
                     "schedule_switch_entity_ids": "Only for the rooms that accept the manual Oikos regulation",
+                    "external_owner_entity_ids": "Declared for the control: while one of them is not exactly off, the room stays blocked and nothing is sent. An empty list is allowed only if declared.",
                     "setpoint_min_c": "16 for Camera Carlo, 18 for Camera Diego Luisa",
                     "manual_preset_bypass": "Camera Carlo: a preset outside none/eco/comfort/boost is accepted during the manual regulation"
                 }
@@ -1117,6 +1132,16 @@
                 "description": "Select the rooms to remove. Configured rooms: {rooms}",
                 "data": {
                     "pdc_rooms_to_remove": "Rooms to remove"
+                }
+            },
+            "heating_pdc_control_confirm": {
+                "title": "Confirm the heat pump control - {name}",
+                "description": "This integration will command the heat pump thermostat of every configured room (heat / off) and the split.\n\n1. External controllers that must be off, never switched by this integration: {rooms}. Until all of them are off nothing is sent.\n2. Only a control that has already been claimed and stored can send: a lost claim or a lost ownership blocks every pending command.\n3. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_pdc_control": "I confirm: this integration may command the heat pump"
+                },
+                "data_description": {
+                    "confirm_pdc_control": "Required to enable the control mode"
                 }
             }
         },
@@ -1159,7 +1184,8 @@
             "pdc_too_many_rooms": "Too many rooms",
             "pdc_invalid_value": "Invalid value",
             "pdc_external_owners_required": "The other owners of the plant must be declared",
-            "pdc_legacy_helpers_required": "The session and override helpers are required in observe"
+            "pdc_legacy_helpers_required": "The session and override helpers are required in observe",
+            "pdc_control_not_confirmed": "Confirm the activation, or go back and choose observe"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -1254,7 +1280,8 @@
         "heating_pdc_mode": {
             "options": {
                 "disabled": "Disabled",
-                "observe": "Observe only (no command)"
+                "observe": "Observe only (no command)",
+                "control": "Control (commands the heat pump rooms, with confirmation)"
             }
         }
     },
@@ -1501,6 +1528,16 @@
                 "code": {
                     "name": "Lock code",
                     "description": "The optional lock code"
+                }
+            }
+        },
+        "pdc_resume_automatic": {
+            "name": "Resume automatic heat pump operation",
+            "description": "End a room's native heat-pump override through the controller's confirmed shutdown sequence.",
+            "fields": {
+                "room_key": {
+                    "name": "Room key",
+                    "description": "Room key configured in the heat pump orchestration options."
                 }
             }
         },

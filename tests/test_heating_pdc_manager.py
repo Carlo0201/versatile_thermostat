@@ -26,6 +26,7 @@ from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.versatile_thermostat import feature_heating_pdc_manager as manager_module
 from custom_components.versatile_thermostat.feature_heating_pdc_manager import (
+    CONF_PDC_CONTROL_CONFIRMED,
     CONF_PDC_RUNTIME,
     PDC_STORAGE_KEY_PREFIX,
     FeatureHeatingPdcManager,
@@ -37,6 +38,12 @@ from .test_heating_pdc_runtime import ROOM_TEMPLATE, section
 
 ENTRY = "central_entry"
 SPLIT, PDC, RAD, VALVE = "climate.split_carlo", "climate.pdc_carlo", "climate.trv_vtherm_carlo", "climate.trv_carlo"
+
+
+@pytest.fixture(autouse=True)
+def enable_control_only_in_manager_tests(monkeypatch):
+    """Exercise the gated control adapter; production and refusal tests stay closed."""
+    monkeypatch.setattr(manager_module, "PDC_CONTROL_AVAILABLE", True)
 
 
 class FakeInhibition:
@@ -95,6 +102,13 @@ def test_the_pdc_sub_section_is_optional_and_absent_means_disabled():
     assert extract_pdc_section({}) is None and extract_pdc_section(None) is None and extract_pdc_section({CONF_PDC_RUNTIME: 3}) is None
     # the PDC has its own mode, next to the sub-section, independent of the boiler mode
     assert extract_pdc_section({"mode": "control", "pdc_mode": "observe", CONF_PDC_RUNTIME: {"mode": "control", "rooms": []}}) == {"mode": "observe", "rooms": []}
+    # the confirmation lives next to the sub-section and reaches the parser under its own key
+    assert extract_pdc_section({"pdc_mode": "control", CONF_PDC_CONTROL_CONFIRMED: True, CONF_PDC_RUNTIME: {"mode": "control"}}) == {
+        "mode": "control",
+        "control_confirmed": True,
+    }
+    assert "control_confirmed" not in extract_pdc_section({"pdc_mode": "observe", CONF_PDC_RUNTIME: {"mode": "observe"}})
+    assert "control_confirmed" not in extract_pdc_section({"pdc_mode": "control", CONF_PDC_RUNTIME: {"control_confirmed": True}})
 
 
 async def test_a_disabled_or_invalid_configuration_owns_nothing(hass: HomeAssistant) -> None:
@@ -253,3 +267,23 @@ async def test_the_vtherm_inhibition_adapter_goes_through_the_existing_api(hass:
     api.set_inhibition.assert_awaited_once_with("climate.x", True)
     api.unset_inhibition.assert_awaited_once_with("climate.x")
     assert ROOM_TEMPLATE and asyncio.iscoroutinefunction(adapter.set)
+
+
+async def test_failed_unload_preserves_publishers_and_their_original_detach(hass: HomeAssistant) -> None:
+    seed_states(hass)
+    previous = make_manager(hass, "observe")
+    seen = []
+    detach = previous.attach("carlo", lambda state, attrs: seen.append((state, attrs)))
+    await previous.async_start()
+    await hass.async_block_till_done()
+    await previous.async_stop()
+    restored = make_manager(hass, "observe")
+    restored.adopt_publishers(previous)
+    await restored.async_start()
+    await hass.async_block_till_done()
+    restored.publish("carlo", "test_reconnected", {"mode": "observe"})
+    assert seen[-1][0] == "test_reconnected"
+    detach()
+    restored.publish("carlo", "after_detach", {"mode": "observe"})
+    assert seen[-1][0] == "test_reconnected"
+    await restored.async_stop()

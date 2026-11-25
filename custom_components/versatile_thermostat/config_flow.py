@@ -28,7 +28,7 @@ from .vtherm_central_api import VersatileThermostatAPI
 from .commons import check_and_extract_service_configuration
 from .humidity import find_humidity_sensor_candidates
 from .heating_boiler_collector import OrchestrationConfigError, parse_orchestration_config
-from .heating_pdc_collector import PdcConfigError, parse_pdc_config
+from .heating_pdc_collector import KEY_EXTERNAL_OWNERS as PDC_KEY_EXTERNAL_OWNERS, PdcConfigError, parse_pdc_config
 
 COMES_FROM = "comes_from"
 PLUGINS_LINK_PLACEHOLDER = "plugins_link"
@@ -66,6 +66,9 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
     # The ``control`` mode of the boiler orchestration is offered only by the options
     # flow of an existing central configuration, behind an explicit confirmation step.
     _ho_allow_control = False
+    # Same gate for the PDC orchestration: ``control`` is offered only when this is True
+    # (the options flow uses ``HO_PDC_CONTROL_ENABLED``).
+    _pdc_allow_control = False
 
     def __init__(self, infos) -> None:
         super().__init__()
@@ -806,7 +809,9 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
             if section.get(CONF_HO_ROOMS):
                 candidate[CONF_HO_ROOMS] = section[CONF_HO_ROOMS]
             # The PDC part of the section is edited by its own steps: it is carried over untouched.
-            for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME):
+            # The PDC confirmation is carried over too: editing the boiler does not change the PDC
+            # configuration, so it must not ask for the PDC confirmation again.
+            for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME, CONF_HO_PDC_CONTROL_CONFIRMED):
                 if key in section:
                     candidate[key] = section[key]
             mode = candidate.get(CONF_HO_MODE)
@@ -922,7 +927,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return self.async_show_form(step_id="heating_orchestration_remove_room", data_schema=schema, description_placeholders=self._ho_rooms_placeholders())
 
     # ----------------------------------------------------------------------
-    # PDC (heat pump) runtime: observe only in this release. Stored in the same
+    # PDC (heat pump) runtime: stored in the same
     # section as the boiler orchestration (``pdc_mode`` + ``pdc_runtime``), with its
     # own mode. ``control`` is not selectable and is refused by the parser.
     # ----------------------------------------------------------------------
@@ -936,12 +941,17 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         section = self._ho_section()
         section[CONF_HO_PDC_MODE] = mode
         section[CONF_HO_PDC_RUNTIME] = runtime
+        # Any change asks for the confirmation again: it is never carried over.
+        section.pop(CONF_HO_PDC_CONTROL_CONFIRMED, None)
         self._infos[CONF_HEATING_ORCHESTRATION] = section
 
-    def _pdc_check(self, runtime: dict, field_keys) -> dict:
-        """Validate a candidate PDC sub-section as ``observe``; return the flow errors (empty when valid)."""
+    def _pdc_check(self, runtime: dict, field_keys, *, mode: str = HO_MODE_OBSERVE, confirmed: bool = False) -> dict:
+        """Validate a candidate PDC sub-section; return the flow errors (empty when valid)."""
+        candidate = {**runtime, CONF_HO_MODE: mode}
+        if confirmed:
+            candidate[CONF_HO_CONTROL_CONFIRMED] = True
         try:
-            config = parse_pdc_config({**runtime, CONF_HO_MODE: HO_MODE_OBSERVE})
+            config = parse_pdc_config(candidate, allow_control=self._pdc_allow_control and mode == HO_MODE_CONTROL)
         except PdcConfigError as err:
             return {(err.key if err.key in field_keys else "base"): f"pdc_{err.code}"}
         for entity_id in config.configured_entity_ids():
@@ -956,17 +966,23 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return {**self._placeholders, "rooms": text or "-"}
 
     async def async_step_heating_pdc(self, user_input: dict | None = None) -> FlowResult:
-        """Mode (disabled or observe) and shared entities of the PDC orchestration."""
+        """Mode (disabled, observe, and control when the release gate allows it) and shared entities."""
         _LOGGER.debug("Into ConfigFlow.async_step_heating_pdc user_input=%s", user_input)
-        schema = STEP_HEATING_PDC_SCHEMA
+        allowed_modes = [*HO_PDC_SELECTABLE_MODES, HO_MODE_CONTROL] if self._pdc_allow_control else list(HO_PDC_SELECTABLE_MODES)
+        schema = build_step_heating_pdc_schema(allowed_modes)
         section = self._ho_section()
         runtime = self._pdc_runtime()
         errors: dict = {}
-        defaults = {CONF_HO_PDC_MODE: section.get(CONF_HO_PDC_MODE, "disabled"), **runtime}
+        default_mode = section.get(CONF_HO_PDC_MODE, "disabled")
+        if default_mode == HO_MODE_CONTROL and not self._pdc_allow_control:
+            # A stored ``control`` of a release where it is not offered is shown as observe:
+            # ``async_finalize`` declasses it on save.
+            default_mode = HO_MODE_OBSERVE
+        defaults = {CONF_HO_PDC_MODE: default_mode, **runtime}
         if user_input is not None:
             defaults.update(user_input)
             mode = user_input.get(CONF_HO_PDC_MODE)
-            if mode not in HO_PDC_SELECTABLE_MODES:
+            if mode not in allowed_modes:
                 errors = {CONF_HO_PDC_MODE: "pdc_control_not_available" if mode == HO_MODE_CONTROL else "pdc_unsupported_mode"}
             else:
                 for key in ("power_entity_id", CONF_HO_CENTRAL_MODE):
@@ -974,7 +990,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
                         runtime.pop(key, None)
                     else:
                         runtime[key] = user_input[key]
-                if mode == HO_MODE_OBSERVE:
+                if mode in (HO_MODE_OBSERVE, HO_MODE_CONTROL):
                     missing = [key for key in ("power_entity_id", CONF_HO_CENTRAL_MODE) if not runtime.get(key)]
                     if missing:
                         errors = {missing[0]: "pdc_required"}
@@ -984,7 +1000,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
                                 errors = {"base": "unknown_entity"}
                 if not errors:
                     self._pdc_store(mode, runtime)
-                    if mode == HO_MODE_OBSERVE:
+                    if mode in (HO_MODE_OBSERVE, HO_MODE_CONTROL):
                         return await self.async_step_heating_pdc_rooms()
                     return await self.async_step_menu()
         return self.async_show_form(
@@ -1003,24 +1019,80 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return self.async_show_menu(step_id="heating_pdc_rooms", menu_options=options, description_placeholders=self._pdc_rooms_placeholders())
 
     async def async_step_heating_pdc_rooms_done(self, user_input: dict | None = None) -> FlowResult:
-        """Back to the main menu; an observe without any room is not saved as a silent no-op."""
-        if self._ho_section().get(CONF_HO_PDC_MODE) == HO_MODE_OBSERVE and not self._pdc_runtime().get(CONF_HO_ROOMS):
+        """Back to the main menu; observe/control without any room is not saved as a silent no-op.
+
+        A ``control`` section needs the explicit confirmation before it is left: any room
+        change drops it, so the user confirms again on the final configuration.
+        """
+        section = self._ho_section()
+        mode = section.get(CONF_HO_PDC_MODE)
+        if mode in (HO_MODE_OBSERVE, HO_MODE_CONTROL) and not self._pdc_runtime().get(CONF_HO_ROOMS):
             return await self.async_step_heating_pdc_rooms()
+        if mode == HO_MODE_CONTROL and section.get(CONF_HO_PDC_CONTROL_CONFIRMED) is not True:
+            return await self.async_step_heating_pdc_control_confirm()
         return await self.async_step_menu()
+
+    async def async_step_heating_pdc_control_confirm(self, user_input: dict | None = None) -> FlowResult:
+        """Explicit confirmation of the PDC ``control`` mode.
+
+        The external owners may still be on when the mode is confirmed: until every one
+        of them is exactly ``off`` the controller stays blocked and sends nothing. The
+        fork never switches an external owner off by itself.
+        """
+        if not self._pdc_allow_control:
+            return await self.async_step_menu()
+        section = self._ho_section()
+        if section.get(CONF_HO_PDC_MODE) != HO_MODE_CONTROL:
+            return await self.async_step_menu()
+        errors: dict = {}
+        if user_input is not None:
+            if user_input.get(CONF_HO_PDC_CONTROL_CONFIRM) is True:
+                section[CONF_HO_PDC_CONTROL_CONFIRMED] = True
+                errors = self._pdc_check(self._pdc_runtime(), {CONF_HO_PDC_CONTROL_CONFIRM}, mode=HO_MODE_CONTROL, confirmed=True)
+                if not errors:
+                    self._infos[CONF_HEATING_ORCHESTRATION] = section
+                    return await self.async_step_menu()
+                section.pop(CONF_HO_PDC_CONTROL_CONFIRMED, None)  # never leave a half confirmation
+            else:
+                errors = {CONF_HO_PDC_CONTROL_CONFIRM: "pdc_control_not_confirmed"}
+        return self.async_show_form(
+            step_id="heating_pdc_control_confirm",
+            data_schema=STEP_HEATING_PDC_CONTROL_CONFIRM_SCHEMA,
+            errors=errors,
+            description_placeholders=self._pdc_control_placeholders(),
+        )
+
+    def _pdc_control_placeholders(self) -> dict:
+        rooms = self._pdc_runtime().get(CONF_HO_ROOMS) or []
+        parts = []
+        for room in rooms:
+            if isinstance(room, Mapping):
+                owners = room.get(PDC_KEY_EXTERNAL_OWNERS) or []
+                parts.append(f"{room.get(CONF_HO_ROOM_KEY)}: {', '.join(owners) if owners else '-'}")
+        return {**self._placeholders, "rooms": "; ".join(parts) or "-"}
 
     async def async_step_heating_pdc_add_room(self, user_input: dict | None = None) -> FlowResult:
         """Add one PDC room: radiator VTherm and valve, temperature, window, split, PDC VTherm and the helpers."""
         schema = STEP_HEATING_PDC_ROOM_SCHEMA
+        mode = self._ho_section().get(CONF_HO_PDC_MODE, HO_MODE_OBSERVE)
+        if mode == HO_MODE_CONTROL:
+            schema = schema.extend({vol.Required(PDC_KEY_EXTERNAL_OWNERS): schema.schema[PDC_KEY_EXTERNAL_OWNERS]})
         errors: dict = {}
         defaults: dict = {}
         if user_input is not None:
             defaults = dict(user_input)
             room = {key: value for key, value in user_input.items() if value not in (None, "", [])}
+            # Only a real declaration is stored: observe never writes an empty list on the
+            # operator's behalf, otherwise a later switch to control would find the owners
+            # "declared" (as []) although nobody ever declared them.
+            owners = list(user_input.get(PDC_KEY_EXTERNAL_OWNERS) or [])
+            if owners or (mode == HO_MODE_CONTROL and PDC_KEY_EXTERNAL_OWNERS in user_input):
+                room[PDC_KEY_EXTERNAL_OWNERS] = owners
             runtime = self._pdc_runtime()
             runtime[CONF_HO_ROOMS] = list(runtime.get(CONF_HO_ROOMS) or []) + [room]
-            errors = self._pdc_check(runtime, {key.schema for key in schema.schema})
+            errors = self._pdc_check(runtime, {key.schema for key in schema.schema}, mode=mode, confirmed=mode == HO_MODE_CONTROL)
             if not errors:
-                self._pdc_store(self._ho_section().get(CONF_HO_PDC_MODE, HO_MODE_OBSERVE), runtime)
+                self._pdc_store(mode, runtime)
                 return await self.async_step_heating_pdc_rooms()
         return self.async_show_form(
             step_id="heating_pdc_add_room",
@@ -1619,6 +1691,15 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if isinstance(ho_section, Mapping) and ho_section.get(CONF_HO_MODE) == HO_MODE_CONTROL and ho_section.get(CONF_HO_CONTROL_CONFIRMED) is not True:
             _LOGGER.warning("The boiler control mode was not confirmed: the boiler orchestration is saved in observe mode")
             self._infos[CONF_HEATING_ORCHESTRATION] = {**ho_section, CONF_HO_MODE: HO_MODE_OBSERVE}
+            ho_section = self._infos[CONF_HEATING_ORCHESTRATION]
+
+        # Same rule for the PDC: no stored ``control`` without the explicit confirmation, and
+        # never in a release whose gate does not offer it.
+        if isinstance(ho_section, Mapping) and ho_section.get(CONF_HO_PDC_MODE) == HO_MODE_CONTROL and (
+            not self._pdc_allow_control or ho_section.get(CONF_HO_PDC_CONTROL_CONFIRMED) is not True
+        ):
+            _LOGGER.warning("The PDC control mode was not confirmed: the PDC orchestration is saved in observe mode")
+            self._infos[CONF_HEATING_ORCHESTRATION] = {**ho_section, CONF_HO_PDC_MODE: HO_MODE_OBSERVE, CONF_HO_PDC_CONTROL_CONFIRMED: False}
 
         # Removes temporary value
         if COMES_FROM in self._infos:
@@ -1656,8 +1737,10 @@ class VersatileThermostatOptionsFlowHandler(
 ):
     """Handle options flow for Versatile Thermostat integration."""
 
-    # The boiler ``control`` mode is offered only when the release gate allows it (observe-only release).
+    # The boiler ``control`` mode is offered only when its release gate allows it.
     _ho_allow_control = HO_BOILER_CONTROL_AVAILABLE
+    # The PDC ``control`` mode has an independent release gate.
+    _pdc_allow_control = HO_PDC_CONTROL_ENABLED
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
