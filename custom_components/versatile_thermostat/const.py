@@ -272,6 +272,7 @@ from .heating_boiler_collector import MODE_CONTROL as HO_MODE_CONTROL  # noqa: E
 from .heating_boiler_collector import MODE_DISABLED as HO_MODE_DISABLED  # noqa: E402
 from .heating_boiler_collector import MODE_OBSERVE as HO_MODE_OBSERVE  # noqa: E402
 from .heating_boiler_collector import SELECTABLE_MODES as _HO_ALL_MODES  # noqa: E402
+from .heating_boiler_collector import BOILER_CONTROL_AVAILABLE as HO_BOILER_CONTROL_AVAILABLE  # noqa: E402
 
 # Modes of the creation flow (never ``control``) and of the options flow.
 HO_SELECTABLE_MODES = list(_HO_CONFIG_FLOW_MODES)

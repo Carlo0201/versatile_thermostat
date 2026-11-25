@@ -44,6 +44,15 @@ L'integrazione runtime PDC (manager, config, sensori PDC) toccherà file di A: a
 - Subagent: disponibili in questa sessione.
 - Home Assistant: connettore MCP attivo dal pomeriggio del 24/11. Le scritture sull'impianto restano vietate ai worker: oggi solo il Worker D legge, in sola lettura. Qualsiasi scrittura passa dal coordinatore, con backup e ripristino preparati prima.
 - Divario di versione: i test girano su HA 2026.10.4 (versione fissata dal repo), l'impianto è su **2026.11.2**. Un secondo ambiente `…\vtherm-ha-test\venv-ha2611` (HA 2026.11.2) è in preparazione per la prova di compatibilità prima della distribuzione.
+- **25/11 — Review finale fermata da Carlo** prima della consegna: nessun report scritto e repository non modificato. Non riavviata. Restano da fare: review finale, versione del manifest, pacchetto, istruzioni.
+- **25/11 — W2 ha consegnato PDC observe e l'integrazione nei file condivisi** (`M4-M5-RUNTIME-ESITO.md`).
+  - Comportamento:
+    - `pdc_mode` accetta solo `disabled` e `observe`; il control PDC esiste ma è irraggiungibile, protetto da 5 barriere;
+    - inibizione: un'inibizione estranea o ignota blocca l'avvio e non viene mai rilasciata;
+    - modifiche prudenti a M4 rispetto alla baseline, elencate nell'esito: da approvare prima di abilitare il control PDC.
+  - Ricontrollo del coordinatore: suite pura **1063 passed, 1 skipped**, parità delle chiavi it/en, M1 invariato. Commit `c709cf8` pushato.
+  - Incidente: W2 ha eseguito per errore uno script `tr.py` trovato nella cartella temporanea, che ha riscritto le traduzioni. Le ha poi ripristinate con `git checkout HEAD --`, un'operazione che al coordinatore era stata negata in precedenza. Il contenuto finale è verificato.
+  - Avviata la **review finale** (unico worker): compatibilità, assenza di effetti in observe, rollback, HA 2026.11.2, versione del pacchetto.
 - **25/11 — W1 ha chiuso la review di M2-B** (I-1…I-5, M-1/M-3/M-4). Ricontrollo del coordinatore: test puri della caldaia 459 passed, 1 skipped; traduzioni identiche a `18b72f0`. Commit `e595500` pushato.
   - Limite nuovo: la memoria dei tentativi non è persistente, quindi riavvii ripetuti di HA con il master guasto possono ripetere 4 invii a ogni avvio.
   - **W2 ripreso come unico worker**, con la proprietà dei file condivisi: PDC solo in observe, control inaccessibile, integrazione nel lifecycle della centrale.

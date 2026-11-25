@@ -557,6 +557,23 @@ async def s22_a_service_in_flight_is_not_cancelled_when_the_action_becomes_none(
     await ctx.mgr.async_stop()
 
 
+@scenario
+async def s23_release_gate_refuses_a_stored_control_section():
+    """With the shipped gate (control unavailable) a confirmed control section never commands."""
+    assert mod.RELEASE_BOILER_CONTROL_AVAILABLE is False, "the shipped release must keep boiler control closed"
+    mod.BOILER_CONTROL_AVAILABLE = False
+    try:
+        ctx = await make(off_world())
+        for _ in range(10):
+            await ctx.world.advance(15)
+        assert calls(ctx) == [], calls(ctx)
+        assert ctx.mgr.mode == "disabled", ctx.mgr.mode
+        assert "control_not_available" in str(attrs(ctx).get("last_error")), attrs(ctx)
+        await ctx.mgr.async_stop()
+    finally:
+        mod.BOILER_CONTROL_AVAILABLE = True
+
+
 async def main():
     failed = 0
     for func in results:

@@ -68,6 +68,8 @@ from vtherm_api.log_collector import get_vtherm_logger
 
 from .const import HO_STORAGE_KEY_PREFIX, HO_STORAGE_VERSION
 from .heating_boiler_collector import (
+    BOILER_CONTROL_AVAILABLE,
+    CONFIG_ERROR_CONTROL_NOT_AVAILABLE,
     CYCLE_ORIGIN_LEGACY_SEED,
     CYCLE_ORIGIN_LOCAL_RESTORE,
     CYCLE_ORIGIN_NEW_OBSERVATION,
@@ -273,6 +275,10 @@ class FeatureHeatingOrchestrationManager:
         try:
             self._config = parse_orchestration_config(section)
             self._config_error = None
+            # Release gate (observe-only release): a stored ``control`` section never controls.
+            # The manager stays inactive with an explicit error, as for any unsupported mode.
+            if self._config.mode == MODE_CONTROL and not BOILER_CONTROL_AVAILABLE:
+                raise OrchestrationConfigError(CONFIG_ERROR_CONTROL_NOT_AVAILABLE)
         except OrchestrationConfigError as err:
             self._config = None
             self._config_error = f"config_{err.code}" + (f":{err.key}" if err.key else "")

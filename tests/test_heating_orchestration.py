@@ -101,6 +101,30 @@ class Clock:
         await hass.async_block_till_done()
 
 
+@pytest.fixture(autouse=True)
+def open_boiler_control_gate(request):
+    """The shipped release keeps boiler control closed (``BOILER_CONTROL_AVAILABLE = False``).
+
+    These tests exercise the control code that a later release will enable, so the gate is opened
+    for each test, except the ``test_release_gate_*`` tests that check the shipped behaviour.
+    """
+    if request.node.name.startswith("test_release_gate"):
+        yield
+        return
+    from custom_components.versatile_thermostat import config_flow as flow_module  # pylint: disable=import-outside-toplevel
+
+    with patch.object(manager_module, "BOILER_CONTROL_AVAILABLE", True), patch.object(flow_module.VersatileThermostatOptionsFlowHandler, "_ho_allow_control", True):
+        yield
+
+
+def test_release_gate_keeps_boiler_control_closed():
+    """The first installable release is observe-only: control is not offered nor accepted."""
+    from custom_components.versatile_thermostat import config_flow as flow_module  # pylint: disable=import-outside-toplevel
+
+    assert manager_module.BOILER_CONTROL_AVAILABLE is False
+    assert flow_module.VersatileThermostatOptionsFlowHandler._ho_allow_control is False  # pylint: disable=protected-access
+
+
 @pytest.fixture(name="clock")
 def clock_fixture():
     clock = Clock()

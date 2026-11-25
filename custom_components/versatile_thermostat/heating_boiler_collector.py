@@ -94,6 +94,13 @@ SELECTABLE_MODES: Final = (MODE_DISABLED, MODE_OBSERVE, MODE_CONTROL)
 # Modes offered when a new central configuration is created (never ``control``).
 CONFIG_FLOW_MODES: Final = (MODE_DISABLED, MODE_OBSERVE)
 
+# Release gate for the boiler ``control`` mode. The first installable release is observe-only:
+# while False the options flow does not offer ``control`` and the manager refuses a stored
+# ``control`` section (inactive with an explicit error, never control). Set to True only in a
+# release whose control path has been validated in Home Assistant.
+BOILER_CONTROL_AVAILABLE: Final = False
+CONFIG_ERROR_CONTROL_NOT_AVAILABLE: Final = "control_not_available"
+
 # Expected domains of the configured bindings.
 MASTER_DOMAINS: Final = ("climate",)
 CENTRAL_MODE_DOMAINS: Final = ("select", "input_select")

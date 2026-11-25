@@ -1656,7 +1656,8 @@ class VersatileThermostatOptionsFlowHandler(
 ):
     """Handle options flow for Versatile Thermostat integration."""
 
-    _ho_allow_control = True
+    # The boiler ``control`` mode is offered only when the release gate allows it (observe-only release).
+    _ho_allow_control = HO_BOILER_CONTROL_AVAILABLE
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""

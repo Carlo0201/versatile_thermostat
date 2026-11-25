@@ -264,7 +264,13 @@ def install_fakes():
     const_stub.HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
     const_stub.HO_STORAGE_VERSION = 2
     sys.modules["vtfake.const"] = const_stub
-    return importlib.import_module("vtfake.feature_heating_orchestration_manager")
+    module = importlib.import_module("vtfake.feature_heating_orchestration_manager")
+    # The shipped release keeps the boiler control gate closed (BOILER_CONTROL_AVAILABLE = False).
+    # The control scenarios exercise the code that a later release will enable, so the harness
+    # opens the gate in this fake process only; scenario s23 closes it again to prove the gate.
+    module.RELEASE_BOILER_CONTROL_AVAILABLE = module.BOILER_CONTROL_AVAILABLE
+    module.BOILER_CONTROL_AVAILABLE = True
+    return module
 
 
 class Clock:
