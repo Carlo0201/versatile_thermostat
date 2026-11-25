@@ -1380,6 +1380,9 @@
             },
             "heating_orchestration_pdc": {
                 "name": "Heat pump orchestration {room}"
+            },
+            "heating_orchestration_room": {
+                "name": "Heating status {room}"
             }
         },
         "number": {

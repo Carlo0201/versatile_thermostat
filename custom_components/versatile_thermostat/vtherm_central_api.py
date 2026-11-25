@@ -256,6 +256,7 @@ class VersatileThermostatAPI(VThermAPI):
         A previous manager is stopped first, so a reload never duplicates observers."""
         await self.async_remove_heating_orchestration_manager()
         self._heating_orchestration_manager = FeatureHeatingOrchestrationManager(self.hass, entry.entry_id, section)
+        self._heating_orchestration_manager.pdc_state_provider = self._pdc_state_for_room
         return self._heating_orchestration_manager
 
     @property
@@ -269,6 +270,11 @@ class VersatileThermostatAPI(VThermAPI):
         await self.async_remove_heating_pdc_manager()
         self._heating_pdc_manager = FeatureHeatingPdcManager(self.hass, entry.entry_id, extract_pdc_section(section))
         return self._heating_pdc_manager
+
+    def _pdc_state_for_room(self, room_key: str):
+        """Last publication of the PDC manager for a room (read only, for the room status sensors)."""
+        manager = self._heating_pdc_manager
+        return None if manager is None else manager.state(room_key)
 
     async def async_remove_heating_pdc_manager(self, entry_id: str | None = None) -> None:
         """Stop and forget the PDC manager (only the one of entry_id when given)"""

@@ -90,6 +90,14 @@ from .heating_boiler_collector import (
     parse_orchestration_config,
     publication_signature,
 )
+from .heating_room_status import (
+    ControllerView,
+    PdcView,
+    empty_room_attributes,
+    evaluate_room_status,
+    room_attributes,
+    room_publication_signature,
+)
 from .heating_boiler_command import (
     CONTROL_INACTIVE,
     CONTROL_PENDING,
@@ -318,6 +326,14 @@ class FeatureHeatingOrchestrationManager:
         self._last_signature: Any = None
         self._last_publish_at: float | None = None
 
+        # Per-room status sensors (read-only projection, ROOM-CONDITIONS-CONTRATTO.md).
+        self._room_publishers: dict[str, list[Publisher]] = {}
+        self._room_states: dict[str, tuple[str, dict[str, Any]]] = {}
+        self._room_signatures: dict[str, Any] = {}
+        self._room_last_publish: dict[str, float] = {}
+        # Set by the central API: ``room_key -> (state, attributes)`` of the PDC manager, or ``None``.
+        self.pdc_state_provider: Callable[[str], tuple[str, Mapping[str, Any]] | None] | None = None
+
         # Control plane (M2-B).
         self._record: CommandRecord | None = None
         self._startup_events: tuple[CommandEvent, ...] = ()
@@ -431,7 +447,12 @@ class FeatureHeatingOrchestrationManager:
             raise ValueError("publishers require the stopped manager of this entry")
         self._publishers = previous._publishers
         self._own_entity_ids = previous._own_entity_ids
+        self._room_publishers = previous._room_publishers
+        self._room_states = previous._room_states
         self._publish(self._state, self._attributes)
+        for room_key, publishers in self._room_publishers.items():
+            for publisher in list(publishers):
+                publisher(*self.room_state(room_key))
 
     @callback
     def attach(self, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:
@@ -450,6 +471,106 @@ class FeatureHeatingOrchestrationManager:
 
         return _detach
 
+    @property
+    def room_keys(self) -> tuple[str, ...]:
+        """The configured rooms (one status sensor each)."""
+        return () if self._config is None else tuple(room.room_key for room in self._config.rooms)
+
+    def room_state(self, room_key: str) -> tuple[str, dict[str, Any]]:
+        """Last published ``(state, attributes)`` of a room."""
+        if self._config is None:
+            return STATE_ERROR, empty_room_attributes(room_key, None, mode=MODE_DISABLED, evaluated_at=None, generation=0, last_error=self._config_error)
+        if room_key in self._room_states:
+            return self._room_states[room_key]
+        binding = next((room for room in self._config.rooms if room.room_key == room_key), None)
+        climate = None if binding is None else binding.climate_entity_id
+        if self.mode == MODE_DISABLED:
+            return STATE_DISABLED, empty_room_attributes(room_key, climate, mode=MODE_DISABLED, evaluated_at=None, generation=0)
+        return STATE_STARTING, empty_room_attributes(room_key, climate, mode=self.mode, evaluated_at=None, generation=0)
+
+    @callback
+    def attach_room(self, room_key: str, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:
+        """Register the status sensor of a room and push its current state."""
+        self._room_publishers.setdefault(room_key, []).append(publisher)
+        if entity_id:
+            self._own_entity_ids.add(entity_id)
+        publisher(*self.room_state(room_key))
+
+        @callback
+        def _detach() -> None:
+            if publisher in self._room_publishers.get(room_key, []):
+                self._room_publishers[room_key].remove(publisher)
+            if entity_id:
+                self._own_entity_ids.discard(entity_id)
+
+        return _detach
+
+    @callback
+    def _publish_room(self, room_key: str, state: str, attributes: dict[str, Any]) -> None:
+        self._room_states[room_key] = (state, attributes)
+        for publisher in list(self._room_publishers.get(room_key, [])):
+            try:
+                publisher(state, attributes)
+            except Exception as err:  # noqa: BLE001 - a publisher must never stop the controller
+                _LOGGER.error("%s - a room publisher failed: %s", self, err)
+
+    @callback
+    def _publish_rooms_special(self, state: str, last_error: str | None, now: float) -> None:
+        """``starting`` / ``error`` for every room (the next evaluation is always published)."""
+        config = self._config
+        if config is None:
+            return
+        self._room_signatures.clear()
+        for room in config.rooms:
+            self._publish_room(
+                room.room_key,
+                state,
+                empty_room_attributes(room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=now, generation=self._generation, last_error=last_error),
+            )
+
+    @callback
+    def _publish_rooms(self, result: EvaluationResult) -> None:
+        """Per-room projection of the very same collection and decision (same clock and generation)."""
+        config = self._config
+        if config is None:
+            return
+        controller = ControllerView(self.mode, OWNER_CONTROLLER if self._ownership.is_owner else OWNER_OBSERVER, result.decision.reason)
+        provider = self.pdc_state_provider
+        tz = dt_util.get_default_time_zone()
+        for room in config.rooms:
+            try:
+                pdc = None
+                if room.has_pdc and provider is not None:
+                    got = provider(room.room_key)
+                    pdc = None if got is None else PdcView(got[0], got[1])
+                status = evaluate_room_status(
+                    room,
+                    self._hass.states,
+                    result.collection,
+                    result.decision,
+                    pdc,
+                    controller,
+                    result.now,
+                    local_tz=tz,
+                    active_count_entity_id=config.active_count_entity_id,
+                )
+                attributes = room_attributes(status, mode=self.mode, evaluated_at=result.now, generation=self._generation)
+                state = status.heat_state
+            except Exception as err:  # noqa: BLE001 - one room never stops the others or the boiler
+                _LOGGER.warning("%s - room status of %s failed: %s", self, room.room_key, type(err).__name__)
+                state = STATE_ERROR
+                attributes = empty_room_attributes(
+                    room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=result.now, generation=self._generation, last_error=f"evaluation_error:{type(err).__name__}"
+                )
+            signature = room_publication_signature(state, attributes)
+            last = self._room_last_publish.get(room.room_key)
+            due = last is None or not 0 <= result.now - last < PUBLISH_HEARTBEAT_S
+            if signature == self._room_signatures.get(room.room_key) and not due:
+                continue
+            self._room_signatures[room.room_key] = signature
+            self._room_last_publish[room.room_key] = result.now
+            self._publish_room(room.room_key, state, attributes)
+
     @callback
     def _publish(self, state: str, attributes: dict[str, Any]) -> None:
         """Publish to every sensor; a failing publisher never blocks the others."""
@@ -466,6 +587,10 @@ class FeatureHeatingOrchestrationManager:
         """Publish ``starting``/``error``: the next evaluation is always published."""
         self._last_signature = None
         self._publish(state, attributes)
+        try:
+            self._publish_rooms_special(state, attributes.get("last_error"), attributes.get("evaluated_at") or 0.0)
+        except Exception as err:  # noqa: BLE001 - never blocks the boiler
+            _LOGGER.warning("%s - room status publication failed: %s", self, type(err).__name__)
 
     @callback
     def _publish_evaluation(self, state: str, attributes: dict[str, Any], now: float) -> bool:
@@ -1085,6 +1210,10 @@ class FeatureHeatingOrchestrationManager:
             _LOGGER.debug("%s - boiler decision %s/%s (%s)", self, decision.action, decision.reason, self.mode)
             self._last_reason = decision.reason
         self._publish_evaluation(decision.reason, attributes, result.now)
+        try:
+            self._publish_rooms(result)
+        except Exception as err:  # noqa: BLE001 - never blocks the boiler
+            _LOGGER.warning("%s - room status publication failed: %s", self, type(err).__name__)
 
     # ------------------------------------------------------------------ logbook
 

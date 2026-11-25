@@ -786,9 +786,7 @@ def collect_boiler_inputs(
             continue
 
         assert current is not None and target is not None and ids is not None
-        active = [
-            valve for valve in underlying if valve in ids and _is_state(states, valve, HEATING_HVAC_MODES) and _state_attr(states, valve, "hvac_action") == HVAC_ACTION_HEATING
-        ]
+        active = active_valves(states, underlying, ids)
         if not active:
             excluded.append(ExcludedRoom(room.room_key, room.climate_entity_id, (EXCLUSION_NO_ACTIVE_VALVE,)))
             continue
@@ -841,6 +839,14 @@ def collect_boiler_inputs(
         excluded_rooms=tuple(excluded),
         watched_entity_ids=tuple(dict.fromkeys(watched)),
     )
+
+
+def active_valves(states: Mapping[str, Any], underlying: Sequence[Any], ids: Sequence[Any]) -> list[Any]:
+    """Physical valves counted by the central entity that are in a heating mode and heating.
+
+    Public form of the expression the collector has always used (also read by the per-room status).
+    """
+    return [valve for valve in underlying if valve in ids and _is_state(states, valve, HEATING_HVAC_MODES) and _state_attr(states, valve, "hvac_action") == HVAC_ACTION_HEATING]
 
 
 def _state_attr(states: Mapping[str, Any], entity_id: Any, name: str) -> Any:

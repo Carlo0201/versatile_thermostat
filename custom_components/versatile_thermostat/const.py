@@ -297,6 +297,7 @@ CONF_HO_PDC_CONTROL_CONFIRM = "confirm_pdc_control"
 CONF_HO_PDC_ROOMS_TO_REMOVE = "pdc_rooms_to_remove"
 HO_PDC_SELECTABLE_MODES = ["disabled", "observe"]
 HO_PDC_SENSOR_SUFFIX = "_heating_orchestration_pdc_"
+HO_ROOM_SENSOR_SUFFIX = "_heating_orchestration_room_"
 HO_PDC_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration_pdc"
 CONF_WINDOW_ACTION = "window_action"
 

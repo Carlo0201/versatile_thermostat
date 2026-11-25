@@ -1355,6 +1355,9 @@
             },
             "heating_orchestration_pdc": {
                 "name": "Orchestrazione PDC {room}"
+            },
+            "heating_orchestration_room": {
+                "name": "Stato riscaldamento {room}"
             }
         }
     },

@@ -60,8 +60,10 @@ from .const import (
     CONF_HO_PDC_RUNTIME,
     HO_BOILER_SENSOR_SUFFIX,
     HO_PDC_SENSOR_SUFFIX,
+    HO_ROOM_SENSOR_SUFFIX,
     overrides,
 )
+from .heating_boiler_collector import ROOM_KEY_PATTERN
 from .heating_pdc_collector import ROOM_KEY_PATTERN as PDC_ROOM_KEY_PATTERN
 
 _LOGGER = get_vtherm_logger(__name__)
@@ -86,6 +88,7 @@ async def async_setup_entry(
 
     if vt_type == CONF_THERMOSTAT_CENTRAL_CONFIG:
         _cleanup_removed_pdc_sensors(hass, entry)
+        _cleanup_removed_room_sensors(hass, entry)
         if entry.data.get(CONF_USE_CENTRAL_BOILER_FEATURE):
             entities = [
                 NbActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
@@ -94,6 +97,8 @@ async def async_setup_entry(
         # Boiler orchestration diagnostic, only when the section is configured
         if CONF_HEATING_ORCHESTRATION in entry.data:
             entities = (entities or []) + [HeatingOrchestrationBoilerSensor(hass, entry)]
+            # Heating status, one per configured room (not only the PDC ones)
+            entities = entities + [HeatingOrchestrationRoomSensor(hass, entry, room_key) for room_key in (_configured_room_keys(entry) or [])]
             # PDC (heat pump) diagnostic, one per configured room (a refused or invalid configuration shows its error)
             ho_section = entry.data.get(CONF_HEATING_ORCHESTRATION)
             pdc_section = ho_section.get(CONF_HO_PDC_RUNTIME) if isinstance(ho_section, dict) else None
@@ -1169,6 +1174,31 @@ def _cleanup_removed_pdc_sensors(hass: HomeAssistant, entry: ConfigEntry) -> Non
             registry.async_remove(entity.entity_id)
 
 
+def _configured_room_keys(entry: ConfigEntry) -> list[str] | None:
+    """The room keys of the orchestration section, or ``None`` when the section cannot be read unambiguously."""
+    section = entry.data.get(CONF_HEATING_ORCHESTRATION)
+    if not isinstance(section, dict):
+        return None
+    rooms = section.get("rooms", [])
+    if not isinstance(rooms, list) or any(not isinstance(room, dict) or not isinstance(room.get("room_key"), str) or not ROOM_KEY_PATTERN.fullmatch(room["room_key"]) for room in rooms):
+        return None
+    return [room["room_key"] for room in rooms]
+
+
+@callback
+def _cleanup_removed_room_sensors(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove only this entry's status sensors of rooms no longer configured; keep everything on a malformed section."""
+    keys = _configured_room_keys(entry)
+    if keys is None:
+        return
+    prefix = f"{entry.entry_id}{HO_ROOM_SENSOR_SUFFIX}"
+    keep = {prefix + key for key in keys}
+    registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain == "sensor" and entity.platform == DOMAIN and entity.unique_id.startswith(prefix) and entity.unique_id not in keep:
+            registry.async_remove(entity.entity_id)
+
+
 class HeatingOrchestrationPdcSensor(SensorEntity):
     """Diagnostic entity of one PDC (heat pump) room (CONTRATTI.md section 4).
 
@@ -1244,6 +1274,73 @@ class HeatingOrchestrationPdcSensor(SensorEntity):
             self._async_publish("error", {"schema_version": 1, "room_key": self._room_key, "mode": "disabled", "last_error": "manager_missing"})
             return
         self._detach = manager.attach(self._room_key, self._async_publish, self.entity_id)
+
+    @overrides
+    async def async_will_remove_from_hass(self) -> None:
+        if self._detach is not None:
+            self._detach()
+            self._detach = None
+
+
+class HeatingOrchestrationRoomSensor(SensorEntity):
+    """Heating status of one configured room (ROOM-CONDITIONS-CONTRATTO.md, schema v1).
+
+    The state is the room ``heat_state`` (or ``disabled``, ``starting``, ``error``). The entity only mirrors
+    what the orchestration manager publishes in the same round as the boiler: it never evaluates nor commands.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "heating_orchestration_room"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = False
+    _attr_icon = "mdi:radiator"
+    # Bulky or volatile attributes stay out of the recorder; the state and the short ones (source, reason, gap) remain.
+    _unrecorded_attributes = frozenset({"conditions", "stages", "blocker", "detail_reasons", "evaluated_at", "generation", "deadline", "pump"})
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, room_key: str) -> None:
+        """Initialize the status sensor of a room"""
+        self._hass = hass
+        self._entry_id = entry.entry_id
+        self._room_key = room_key
+        self._device_name = entry.data.get(CONF_NAME)
+        self._attr_unique_id = f"{entry.entry_id}{HO_ROOM_SENSOR_SUFFIX}{room_key}"
+        self._attr_translation_placeholders = {"room": room_key}
+        self._attr_native_value = None
+        self._attributes: dict = {}
+        self._detach: Callable | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Same device as the other central configuration entities"""
+        return DeviceInfo(
+            entry_type=None,
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._device_name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DOMAIN,
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Diagnostic attributes (JSON safe)"""
+        return self._attributes
+
+    @callback
+    def _async_publish(self, state: str, attributes: dict) -> None:
+        self._attr_native_value = state
+        self._attributes = attributes
+        if self.hass is not None and self.entity_id:
+            self.async_write_ha_state()
+
+    @overrides
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(self._hass)
+        manager = api.heating_orchestration_manager if api else None
+        if manager is None or manager.entry_id != self._entry_id:
+            self._async_publish("error", {"schema_version": 1, "room_key": self._room_key, "mode": "disabled", "last_error": "manager_missing"})
+            return
+        self._detach = manager.attach_room(self._room_key, self._async_publish, self.entity_id)
 
     @overrides
     async def async_will_remove_from_hass(self) -> None:

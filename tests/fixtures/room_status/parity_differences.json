@@ -1,0 +1,91 @@
+{
+ "at target": [
+  "caldaia:boilerRoomDemand: card=pass integrazione=unknown"
+ ],
+ "count invalid": [
+  "rilascio radiatore (inibizione e PDC): card=unknown integrazione=pass",
+  "caldaia:boilerParticipation: card=unknown integrazione=pass",
+  "caldaia:boilerRoomState: card=unknown integrazione=pass",
+  "caldaia:boilerRoomReady: card=unknown integrazione=pass",
+  "caldaia:boilerWindow: card=unknown integrazione=pass",
+  "caldaia:safety: card=unknown integrazione=pass",
+  "caldaia:overpowering: card=unknown integrazione=pass",
+  "caldaia:boilerRoomDemand: card=unknown integrazione=pass",
+  "caldaia:boilerTemperature: card=unknown integrazione=pass",
+  "caldaia:boilerValve: card=unknown integrazione=pass",
+  "fase ready: card=unknown integrazione=pass",
+  "fase demand: card=wait integrazione=pass",
+  "bloccante: card=boilerThermalGap integrazione=eligible_radiator"
+ ],
+ "demand without attribute idle": [
+  "caldaia:boilerRoomDemand: card=pass integrazione=unknown"
+ ],
+ "demand without attribute idle below": [
+  "caldaia:boilerRoomDemand: card=pass integrazione=unknown"
+ ],
+ "fahrenheit": [
+  "radiatore:temperature: card=pass integrazione=fail",
+  "caldaia:boilerTemperature: card=pass integrazione=fail",
+  "caldaia:boilerValve: card=fail integrazione=pass",
+  "fase ready: card=pass integrazione=fail",
+  "fase demand: card=fail integrazione=pass",
+  "bloccante: card=boilerValve integrazione=temperature"
+ ],
+ "pdc observe blocked power": [
+  "rilascio radiatore (inibizione e PDC): card=unknown integrazione=pass",
+  "fase ready: card=unknown integrazione=pass"
+ ],
+ "pdc observe measured heating": [
+  "rilascio radiatore (inibizione e PDC): card=unknown integrazione=pass",
+  "fase ready: card=unknown integrazione=pass"
+ ],
+ "pdc transition window": [
+  "fase demand: card=wait integrazione=pass"
+ ],
+ "room off no demand attribute": [
+  "caldaia:boilerRoomDemand: card=pass integrazione=unknown"
+ ],
+ "temperature datetime missing": [
+  "radiatore:temperature: card=unknown integrazione=fail"
+ ],
+ "trv heating nonparticipant": [
+  "caldaia:nativeController: card=observe integrazione=na",
+  "caldaia:boilerParticipation: card=fail integrazione=na",
+  "caldaia:eligibleRadiator: card=fail integrazione=na",
+  "caldaia:boilerMaster: card=pass integrazione=na",
+  "caldaia:validInputs: card=pass integrazione=na",
+  "caldaia:boilerValveCount: card=pass integrazione=na",
+  "caldaia:boilerThermalGap: card=pass integrazione=na",
+  "caldaia:boilerRoute: card=pass integrazione=na",
+  "caldaia:boilerHold: card=wait integrazione=na",
+  "caldaia:boilerCooldown: card=wait integrazione=na",
+  "fase boiler: card=fail integrazione=na",
+  "bloccante: card=boilerParticipation integrazione=None"
+ ],
+ "trv heating nonparticipant boiler on": [
+  "caldaia:nativeController: card=observe integrazione=na",
+  "caldaia:boilerParticipation: card=fail integrazione=na",
+  "caldaia:eligibleRadiator: card=fail integrazione=na",
+  "caldaia:boilerMaster: card=pass integrazione=na",
+  "caldaia:validInputs: card=pass integrazione=na",
+  "caldaia:boilerValveCount: card=pass integrazione=na",
+  "fase boiler: card=fail integrazione=na",
+  "bloccante: card=boilerParticipation integrazione=None"
+ ],
+ "valve unreadable": [
+  "radiatore:valveActive: card=unknown integrazione=fail"
+ ],
+ "window open": [
+  "fase demand: card=wait integrazione=pass"
+ ],
+ "window open pending": [
+  "radiatore:window: card=pass integrazione=wait",
+  "caldaia:boilerWindow: card=fail integrazione=wait",
+  "fase ready: card=fail integrazione=wait",
+  "fase demand: card=wait integrazione=pass"
+ ],
+ "window unknown": [
+  "fase demand: card=wait integrazione=pass",
+  "bloccante: card=boilerThermalGap integrazione=eligible_radiator"
+ ]
+}

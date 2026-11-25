@@ -1,0 +1,305 @@
+{
+  "state": "radiator_heating",
+  "attributes": {
+    "schema_version": 1,
+    "mode": "observe",
+    "evaluated_at": 1795612800.0,
+    "generation": 4821,
+    "room_key": "example_living",
+    "climate_entity_id": "climate.example_example_living",
+    "heat_state": "radiator_heating",
+    "reason": "radiator_heating",
+    "detail_reasons": [],
+    "source": "radiator",
+    "current": 19.5,
+    "target": 20.0,
+    "gap": 0.5,
+    "start_gap": 0.3,
+    "deadline": null,
+    "pump": null,
+    "last_error": null,
+    "stages": [
+      {
+        "key": "ready",
+        "status": "pass",
+        "passed": 10,
+        "total": 10
+      },
+      {
+        "key": "demand",
+        "status": "pass",
+        "passed": 2,
+        "total": 2
+      },
+      {
+        "key": "boiler",
+        "status": "pass",
+        "passed": 9,
+        "total": 9
+      }
+    ],
+    "blocker": null,
+    "conditions": [
+      {
+        "id": "room_available",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "hvac_enabled",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": "heat",
+        "expected": "heat|auto",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "room_ready",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "initialized",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "central_mode",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": "Auto",
+        "expected": "Auto|Heat only",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "window",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": "off",
+        "expected": "off|bypass",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "inhibition",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "safety",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "overpowering",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "temperature",
+        "stage": "ready",
+        "status": "pass",
+        "reason_code": null,
+        "actual": 120,
+        "expected": 3600,
+        "deadline": null,
+        "unit": "s"
+      },
+      {
+        "id": "room_demand",
+        "stage": "demand",
+        "status": "pass",
+        "reason_code": null,
+        "actual": 0.5,
+        "expected": 0.3,
+        "deadline": null,
+        "unit": "°C"
+      },
+      {
+        "id": "valve_active",
+        "stage": "demand",
+        "status": "pass",
+        "reason_code": null,
+        "actual": 1,
+        "expected": ">=1",
+        "deadline": null,
+        "unit": "count"
+      },
+      {
+        "id": "boiler_participation",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "eligible_radiator",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "controller",
+        "stage": "boiler",
+        "status": "observe",
+        "reason_code": "observe_only",
+        "actual": "observer",
+        "expected": "controller",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "master",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": "heat",
+        "expected": "off|heat",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "inputs",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "valve_count",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": 2,
+        "expected": ">0",
+        "deadline": null,
+        "unit": "count"
+      },
+      {
+        "id": "thermal_gap",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": 0.5,
+        "expected": ">=0.3",
+        "deadline": null,
+        "unit": "°C"
+      },
+      {
+        "id": "pilot",
+        "stage": "boiler",
+        "status": "na",
+        "reason_code": null,
+        "actual": "off",
+        "expected": "off|on",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "single_room_pilot",
+        "stage": "boiler",
+        "status": "na",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "manual_request",
+        "stage": "boiler",
+        "status": "na",
+        "reason_code": null,
+        "actual": "off",
+        "expected": "on",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "path",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": "normal",
+        "expected": "manual|normal|single",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "stability",
+        "stage": "boiler",
+        "status": "na",
+        "reason_code": null,
+        "actual": null,
+        "expected": null,
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "cooldown",
+        "stage": "boiler",
+        "status": "na",
+        "reason_code": null,
+        "actual": null,
+        "expected": ">=300",
+        "deadline": null,
+        "unit": null
+      },
+      {
+        "id": "consent",
+        "stage": "boiler",
+        "status": "pass",
+        "reason_code": null,
+        "actual": true,
+        "expected": true,
+        "deadline": null,
+        "unit": null
+      }
+    ]
+  }
+}
