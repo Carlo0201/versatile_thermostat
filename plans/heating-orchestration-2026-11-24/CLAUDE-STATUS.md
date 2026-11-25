@@ -1,6 +1,32 @@
 # Stato operativo — coordinamento Claude
 
-Coordinatore: sessione Claude Code (Opus 5.5), presa in carico completa del 24/11/2026. Punto di ingresso storico: `CLAUDE-TAKEOVER.md`. Contratti condivisi: `CONTRATTI.md` (di proprietà del coordinatore). Ultimo aggiornamento: 24/11/2026, avvio dei filoni A/B/C.
+Coordinatore: sessione Claude Code (Opus 5.5), presa in carico completa del 24/11/2026. Punto di ingresso storico: `CLAUDE-TAKEOVER.md`. Contratti condivisi: `CONTRATTI.md` (di proprietà del coordinatore).
+
+## STATO ATTUALE — 25/11/2026 (prevale su tutte le righe sotto, che sono storico)
+
+- **Prima versione installabile in observe pronta**, non installata e non validata in HA.
+  - Versione: `10.6.3+oikos.1`, commit `99b8994` pushato su `codex/avatto-trv-pilot`.
+  - Pacchetto: `output/versatile_thermostat_observe_2026-11-25/` nel progetto padre, SHA-256 `57c6febb…78aa`, 89 file.
+  - Guida: **`INSTALLAZIONE-OBSERVE.md`** (backup, aggiornamento, attivazione observe, segnali, rollback, lavoro residuo).
+- **Disponibile:**
+  - disabled: predefinito, comportamento invariato;
+  - observe caldaia;
+  - observe PDC.
+  Nessun comando in observe.
+- **Chiuso o incompleto:**
+  - control caldaia completo ma chiuso dalla barriera `BOILER_CONTROL_AVAILABLE = False`;
+  - control PDC incompleto e irraggiungibile;
+  - sospensione generale e storico attività solo come contratto;
+  - card Oikos non adattate in questo incarico.
+- **Verifiche:**
+  - suite pura 1063 passed, 1 skipped;
+  - scenari HA finto: caldaia 23/23, PDC 39/39;
+  - review finale (`REVIEW-FINALE-OBSERVE.md`): installabile in observe, 0 bloccanti.
+  - **Nessun test HA eseguito** (divieto di Carlo).
+- **Worker attivi: nessuno.** Regola corrente: un solo worker alla volta.
+- Prossima priorità: validazione HA in ambiente isolato, solo se autorizzata; poi installazione observe da parte di Carlo (vedi `INSTALLAZIONE-OBSERVE.md` §10).
+
+---
 
 ## Filoni
 
