@@ -68,6 +68,7 @@ from .heating_pdc_transaction import (
 from .room_override_policy import MODE_MANUAL as ROOM_MODE_MANUAL, MODE_OVERRIDE as ROOM_MODE_OVERRIDE
 
 SCHEMA_VERSION: Final = 1
+PDC_CONTROL_AVAILABLE: Final = True
 
 MODE_DISABLED: Final = "disabled"
 MODE_OBSERVE: Final = "observe"
@@ -163,8 +164,8 @@ class PdcRoomConfig:
     window_entity_id: str
     split_entity_id: str
     pdc_entity_id: str
-    automatic_entity_id: str
-    schedule_stop_entity_id: str
+    automatic_entity_id: str | None
+    schedule_stop_entity_id: str | None
     override_timer_entity_id: str | None = None
     schedule_switch_entity_ids: tuple[str, ...] = ()
     managed_entity_id: str | None = None
@@ -173,6 +174,7 @@ class PdcRoomConfig:
     external_owner_entity_ids: tuple[str, ...] = ()
     external_owners_declared: bool = False
     policy: PdcPolicyConfig = field(default_factory=PdcPolicyConfig)
+    automatic_enabled: bool | None = None
 
     def room_entity_ids(self) -> tuple[str, ...]:
         """Every entity the room's inputs depend on (without the shared ones)."""
@@ -278,6 +280,7 @@ def _parse_room(item: Any, mode: str) -> PdcRoomConfig:
         setpoint_min_c=_number(item.get(KEY_SETPOINT_MIN), KEY_SETPOINT_MIN, 16.0, 5.0, 30.0),
         manual_preset_bypass=_bool(item.get(KEY_MANUAL_BYPASS), KEY_MANUAL_BYPASS),
     )
+    native_settings = mode == MODE_CONTROL and isinstance(item.get("automatic_enabled"), bool)
     return PdcRoomConfig(
         room_key=room_key,
         radiator_entity_id=_entity(item.get(KEY_RADIATOR), KEY_RADIATOR, CLIMATE_DOMAINS, required=True),  # type: ignore[arg-type]
@@ -286,8 +289,8 @@ def _parse_room(item: Any, mode: str) -> PdcRoomConfig:
         window_entity_id=_entity(item.get(KEY_WINDOW), KEY_WINDOW, BINARY_DOMAINS, required=True),  # type: ignore[arg-type]
         split_entity_id=_entity(item.get(KEY_SPLIT), KEY_SPLIT, CLIMATE_DOMAINS, required=True),  # type: ignore[arg-type]
         pdc_entity_id=_entity(item.get(KEY_PDC), KEY_PDC, CLIMATE_DOMAINS, required=True),  # type: ignore[arg-type]
-        automatic_entity_id=_entity(item.get(KEY_AUTOMATIC), KEY_AUTOMATIC, BINARY_DOMAINS, required=True),  # type: ignore[arg-type]
-        schedule_stop_entity_id=_entity(item.get(KEY_SCHEDULE_STOP), KEY_SCHEDULE_STOP, SCHEDULE_DOMAINS, required=True),  # type: ignore[arg-type]
+        automatic_entity_id=_entity(item.get(KEY_AUTOMATIC), KEY_AUTOMATIC, BINARY_DOMAINS, required=not native_settings),  # type: ignore[arg-type]
+        schedule_stop_entity_id=_entity(item.get(KEY_SCHEDULE_STOP), KEY_SCHEDULE_STOP, SCHEDULE_DOMAINS, required=not native_settings),  # type: ignore[arg-type]
         override_timer_entity_id=_entity(item.get(KEY_OVERRIDE_TIMER), KEY_OVERRIDE_TIMER, TIMER_DOMAINS, required=False),
         schedule_switch_entity_ids=_entity_list(item.get(KEY_SCHEDULE_SWITCHES), KEY_SCHEDULE_SWITCHES, ("switch",), 8),
         managed_entity_id=legacy,
@@ -296,6 +299,7 @@ def _parse_room(item: Any, mode: str) -> PdcRoomConfig:
         external_owner_entity_ids=owners,
         external_owners_declared=owners_declared,
         policy=policy,
+        automatic_enabled=item["automatic_enabled"] if native_settings else None,
     )
 
 
@@ -488,6 +492,8 @@ class PdcLocalInputs:
     managed: str | None = None
     managed_changed_at: float | None = None
     cycle: PdcCycle | None = None
+    room_manual_regulation: bool | None = None
+    evaluated_at: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -538,6 +544,33 @@ class PdcCollection:
     split_changed_at: float | None
 
 
+def native_schedule_guard(states: Mapping[str, Any], bindings: Sequence[str], now: float | None) -> str | None:
+    """Conservatively defer a hand-over near the next active Scheduler transition."""
+    if not bindings:
+        return "none"
+    if now is None:
+        return None
+    earliest = None
+    for binding in bindings:
+        view = lookup(states, binding)
+        if view.state == STATE_OFF:
+            continue
+        if view.state not in (STATE_ON, "triggered", "waiting"):
+            return None
+        next_trigger = view.attributes.get("next_trigger")
+        if not isinstance(next_trigger, str):
+            return None
+        try:
+            stamp = datetime.fromisoformat(next_trigger)
+            if stamp.tzinfo is None or stamp.timestamp() < now - 5:
+                return None
+            at = stamp.timestamp()
+        except (ValueError, OSError, OverflowError):
+            return None
+        earliest = at if earliest is None else min(earliest, at)
+    return "none" if earliest is None else str(earliest)
+
+
 def collect_pdc_snapshot(
     states: Mapping[str, Any],
     room: PdcRoomConfig,
@@ -577,8 +610,8 @@ def collect_pdc_snapshot(
         cycle = _decode_cycle(cycle_view.state) if cycle_available else PdcCycle()
 
     inhibited, marker = read_inhibition(radiator.attributes)
-    room_manual_regulation = None
-    if "override_active" in radiator.attributes:
+    room_manual_regulation = local.room_manual_regulation
+    if room_manual_regulation is None and "override_active" in radiator.attributes:
         attributes = radiator.attributes
         room_manual_regulation = (
             radiator.state not in (None, STATE_UNKNOWN, STATE_UNAVAILABLE)
@@ -593,7 +626,7 @@ def collect_pdc_snapshot(
         override=local.override if local.override is not None else override.state,
         managed=local.managed if local.managed is not None else managed.state,
         managed_changed_at=local.managed_changed_at if local.managed is not None else managed.changed_at,
-        automatic=automatic.state,
+        automatic=automatic.state if room.automatic_entity_id else ("on" if room.automatic_enabled is True else "off"),
         central_mode=central.state,
         radiator_mode=radiator.state,
         requested_hvac_mode=read_requested_hvac_mode(radiator.attributes),
@@ -611,7 +644,7 @@ def collect_pdc_snapshot(
         pdc_setpoint=as_number(pdc.attributes.get("temperature")),
         other_managed=other.managed,
         other_split_mode=other.split_mode,
-        schedule_stop=schedule.state,
+        schedule_stop=schedule.state if room.schedule_stop_entity_id else native_schedule_guard(states, room.schedule_switch_entity_ids, local.evaluated_at),
         cycle=cycle,
         cycle_available=cycle_available,
         heating_override_timer=timer.state,

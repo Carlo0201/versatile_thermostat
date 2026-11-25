@@ -488,7 +488,7 @@ def test_registry_cleanup_removes_only_obsolete_pdc_sensors_of_this_entry(rooms)
     assert removed == expected
 
 
-# --- T3: tolerance for an unavailable owner, then safety OFF only ------------------------------
+# --- T3: explicit external ownership interlock -----------------------------------------------
 
 OWNER = "automation.chooser_carlo"
 
@@ -498,7 +498,7 @@ def _offs(plant):
 
 
 @pytest.mark.parametrize("state", ["unavailable", "unknown", None])
-def test_unavailable_owner_is_tolerated_for_30_seconds_then_only_the_safety_off_is_sent(state):
+def test_unavailable_owner_blocks_even_after_an_extended_loss_of_state(state):
     async def scenario():
         plant, runtime = make()
         await run_until_running(plant)
@@ -511,18 +511,15 @@ def test_unavailable_owner_is_tolerated_for_30_seconds_then_only_the_safety_off_
         assert len(plant.calls) == before  # inside the tolerance nothing is sent
         assert runtime.transaction("carlo").phase == tr.PHASE_RUNNING
         await plant.advance(8)
-        sent = plant.calls[before:]
-        assert sent and all(c[0] == "climate" and c[1] == "set_hvac_mode" and c[2]["hvac_mode"] == "off" for c in sent)
-        assert {c[2]["entity_id"] for c in sent} <= {CARLO_PDC, CARLO_SPLIT}
-        assert plant.states[CARLO_PDC]["state"] == "off" and plant.states[CARLO_SPLIT]["state"] == "off"
+        assert len(plant.calls) == before
+        assert plant.states[CARLO_PDC]["state"] == "heat" and plant.states[CARLO_SPLIT]["state"] == "heat"
         assert not any(entry[0] == "unset" for entry in plant.log)  # the radiator is never released while blocked
         assert plant.inhibited() is True
         assert ("carlo_pdc_owner_unavailable", "Pompa di calore: proprietario esterno non disponibile") in plant.notifications
-        # the owner comes back: the notification goes away and the session returns through the safe path
         plant.set(OWNER, "off")
-        await plant.advance(120)
+        await plant.advance(20)
         assert ("carlo_pdc_owner_unavailable", None) in plant.notifications
-        assert runtime.transaction("carlo").phase == tr.PHASE_IDLE and plant.inhibited() is False
+        assert runtime.transaction("carlo").phase == tr.PHASE_RUNNING
 
     run(scenario())
 
@@ -582,7 +579,7 @@ def test_the_tolerance_never_applies_without_a_session_of_this_room():
     run(scenario())
 
 
-def test_after_the_tolerance_only_off_commands_pass_the_interlock():
+def test_off_cannot_bypass_the_interlock_after_an_extended_loss_of_state():
     async def scenario():
         plant, runtime = make()
         await run_until_running(plant)
@@ -594,6 +591,6 @@ def test_after_the_tolerance_only_off_commands_pass_the_interlock():
         assert not await runtime._command(room, "climate", "set_temperature", CARLO_PDC, {"temperature": 22})
         assert not await runtime._command(room, "climate", "set_hvac_mode", "climate.other_split", {"hvac_mode": "off"})
         assert len(plant.calls) == before
-        assert await runtime._command(room, "climate", "set_hvac_mode", CARLO_SPLIT, {"hvac_mode": "off"})
+        assert not await runtime._command(room, "climate", "set_hvac_mode", CARLO_SPLIT, {"hvac_mode": "off"})
 
     run(scenario())

@@ -50,7 +50,7 @@ MAX_QUERY_LIMIT: Final = 500
 MAX_TEXT: Final = 160
 MAX_CHANGES: Final = 12
 
-ROOM_KEY_PATTERN: Final = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+ROOM_KEY_PATTERN: Final = re.compile(r"[a-z0-9_]{1,64}\Z")
 ENTITY_ID_PATTERN: Final = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 
 

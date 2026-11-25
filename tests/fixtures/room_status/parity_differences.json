@@ -4,6 +4,7 @@
  ],
  "count invalid": [
   "rilascio radiatore (inibizione e PDC): card=unknown integrazione=pass",
+  "radiatore:valveActive: card=pass integrazione=unknown",
   "caldaia:boilerParticipation: card=unknown integrazione=pass",
   "caldaia:boilerRoomState: card=unknown integrazione=pass",
   "caldaia:boilerRoomReady: card=unknown integrazione=pass",
@@ -12,9 +13,8 @@
   "caldaia:overpowering: card=unknown integrazione=pass",
   "caldaia:boilerRoomDemand: card=unknown integrazione=pass",
   "caldaia:boilerTemperature: card=unknown integrazione=pass",
-  "caldaia:boilerValve: card=unknown integrazione=pass",
   "fase ready: card=unknown integrazione=pass",
-  "fase demand: card=wait integrazione=pass",
+  "fase demand: card=wait integrazione=unknown",
   "bloccante: card=boilerThermalGap integrazione=eligible_radiator"
  ],
  "demand without attribute idle": [

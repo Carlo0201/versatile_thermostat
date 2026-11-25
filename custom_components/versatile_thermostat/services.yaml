@@ -456,3 +456,48 @@ download_logs:
             required: false
             selector:
                 datetime:
+
+
+heating_room_override:
+  name: Heating room override
+  description: Pauses a room's configured program for a duration. Omit minutes to resume the paused program.
+  fields:
+    room_key:
+      required: true
+      selector:
+        text:
+    minutes:
+      selector:
+        number:
+          min: 1
+          max: 1440
+          mode: box
+
+heating_room_history:
+  name: Heating room history
+  description: Returns a page of the native heating journal for one room.
+  fields:
+    room_key:
+      required: true
+      selector:
+        text:
+    since:
+      description: Earliest Unix timestamp to include.
+      selector:
+        text:
+    until:
+      description: Latest Unix timestamp to include.
+      selector:
+        text:
+    limit:
+      selector:
+        number:
+          min: 1
+          max: 500
+          mode: box
+    offset:
+      selector:
+        number:
+          min: 0
+          max: 2000
+          mode: box

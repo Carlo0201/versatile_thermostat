@@ -60,6 +60,8 @@ class OverrideState:
     pausing: bool = False
     restored: bool = False
     end_reason: str | None = None
+    paused_schedulers: tuple[str, ...] = ()
+    resumed_actions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         for name in ("started_at", "ends_at", "duration_min"):

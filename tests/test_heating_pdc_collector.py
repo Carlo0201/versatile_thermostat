@@ -614,3 +614,14 @@ def test_the_collector_is_pure():
     }
     assert imported <= allowed, imported
     assert math.isfinite(1.0)
+
+
+def test_native_scheduler_guard_requires_a_readable_next_transition():
+    schedule = "switch.example_schedule"
+    now = 1_800_000_000
+    states = {schedule: {"state": "on", "attributes": {"next_trigger": "2027-01-15T09:00:00+00:00"}}}
+    assert float(c.native_schedule_guard(states, (schedule,), now)) == 1_800_003_600
+    states[schedule]["state"] = "unavailable"
+    assert c.native_schedule_guard(states, (schedule,), now) is None
+    states[schedule]["state"] = "off"
+    assert c.native_schedule_guard(states, (schedule,), now) == "none"

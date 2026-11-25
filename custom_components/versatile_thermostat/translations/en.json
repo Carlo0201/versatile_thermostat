@@ -290,6 +290,7 @@
                 "title": "Boiler orchestration",
                 "description": "Observation of the boiler decision. Choose `observe` to publish a diagnostic entity with the proposed boiler action (no command is sent). The `control` mode can be enabled later from the options of the central configuration. Rooms are added in the next step.",
                 "data": {
+                    "native_boiler_inputs": "Use native boiler consent",
                     "mode": "Mode",
                     "master_entity_id": "Boiler master (climate)",
                     "central_mode_entity_id": "Central mode (select)",
@@ -337,6 +338,9 @@
                 "title": "Add a room",
                 "description": "Associate a Versatile Thermostat with the boiler orchestration. Valves and window sensor are read from its attributes. Configured rooms: {rooms}",
                 "data": {
+                    "scheduler_entity_ids": "Room Scheduler programs",
+                    "program_owner_entity_ids": "Legacy program automations",
+                    "workday_entity_id": "Workday sensor",
                     "room_key": "Room key",
                     "climate_entity_id": "Room thermostat (Versatile Thermostat)",
                     "pilot_filter": "Subject to the pilot filter",
@@ -503,6 +507,7 @@
                 "title": "Add a heat pump room",
                 "description": "Radiator, split and PDC thermostat of the room, plus the helpers of the current automations (read only in observe). Configured rooms: {rooms}",
                 "data": {
+                    "automatic_enabled": "Enable native PDC automatic mode when no helper is bound",
                     "room_key": "Room key",
                     "radiator_entity_id": "Radiator thermostat (Versatile Thermostat)",
                     "radiator_valve_entity_id": "Radiator valve (physical climate)",
@@ -594,6 +599,7 @@
             "pdc_control_not_confirmed": "Confirm the activation, or go back and choose observe"
         },
         "abort": {
+            "heating_session_active": "Finish active heat pump sessions and room overrides before changing this configuration.",
             "already_configured": "Device is already configured"
         }
     },
@@ -884,6 +890,7 @@
                 "title": "Boiler orchestration - {name}",
                 "description": "Boiler orchestration. `observe` evaluates and publishes only. `control` lets this integration switch the boiler master between heat and off; it needs the external controllers below and asks for a confirmation in the next step. Rooms are added afterwards.",
                 "data": {
+                    "native_boiler_inputs": "Use native boiler consent",
                     "mode": "Mode",
                     "master_entity_id": "Boiler master (climate)",
                     "central_mode_entity_id": "Central mode (select)",
@@ -919,7 +926,7 @@
                 }
             },
             "heating_orchestration_rooms": {
-                "title": "Rooms of the boiler orchestration - {name}",
+                "title": "Rooms of the boiler orchestration",
                 "description": "Configured rooms: {rooms}",
                 "menu_options": {
                     "heating_orchestration_add_room": "Add a room",
@@ -931,6 +938,9 @@
                 "title": "Add a room - {name}",
                 "description": "Associate a Versatile Thermostat with the boiler orchestration. Valves and window sensor are read from its attributes. Configured rooms: {rooms}",
                 "data": {
+                    "scheduler_entity_ids": "Room Scheduler programs",
+                    "program_owner_entity_ids": "Legacy program automations",
+                    "workday_entity_id": "Workday sensor",
                     "room_key": "Room key",
                     "climate_entity_id": "Room thermostat (Versatile Thermostat)",
                     "pilot_filter": "Subject to the pilot filter",
@@ -1097,6 +1107,7 @@
                 "title": "Add a heat pump room",
                 "description": "Radiator, split and PDC thermostat of the room, plus the helpers of the current automations (read only in observe). Configured rooms: {rooms}",
                 "data": {
+                    "automatic_enabled": "Enable native PDC automatic mode when no helper is bound",
                     "room_key": "Room key",
                     "radiator_entity_id": "Radiator thermostat (Versatile Thermostat)",
                     "radiator_valve_entity_id": "Radiator valve (physical climate)",
@@ -1188,6 +1199,7 @@
             "pdc_control_not_confirmed": "Confirm the activation, or go back and choose observe"
         },
         "abort": {
+            "heating_session_active": "Finish active heat pump sessions and room overrides before changing this configuration.",
             "already_configured": "Device is already configured"
         }
     },

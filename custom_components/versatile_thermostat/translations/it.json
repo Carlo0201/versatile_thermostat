@@ -290,6 +290,7 @@
                 "title": "Orchestrazione caldaia",
                 "description": "Osservazione della decisione della caldaia. Scegliere `observe` per pubblicare un'entità diagnostica con l'azione proposta (nessun comando viene inviato). La modalità `control` si abilita in seguito dalle opzioni della configurazione centrale. Le stanze si aggiungono nel passo successivo.",
                 "data": {
+                    "native_boiler_inputs": "Usa il consenso nativo della caldaia",
                     "mode": "Modalità",
                     "master_entity_id": "Master caldaia (climate)",
                     "central_mode_entity_id": "Modo centrale (select)",
@@ -337,6 +338,9 @@
                 "title": "Aggiungi una stanza",
                 "description": "Associa un Versatile Thermostat all'orchestrazione caldaia. Valvole e sensore finestra sono letti dai suoi attributi. Stanze configurate: {rooms}",
                 "data": {
+                    "scheduler_entity_ids": "Programmi Scheduler della stanza",
+                    "program_owner_entity_ids": "Automazioni legacy del programma",
+                    "workday_entity_id": "Sensore giorno lavorativo",
                     "room_key": "Chiave stanza",
                     "climate_entity_id": "Termostato della stanza (Versatile Thermostat)",
                     "pilot_filter": "Soggetta al filtro pilota",
@@ -491,6 +495,7 @@
                 "title": "Aggiungi una stanza con pompa di calore",
                 "description": "Radiatore, split e termostato PDC della stanza, più gli helper delle automazioni attuali (solo letti in observe). Stanze configurate: {rooms}",
                 "data": {
+                    "automatic_enabled": "Se non è collegato un helper, abilita l'automatico PDC nativo",
                     "room_key": "Chiave stanza",
                     "radiator_entity_id": "Termostato del radiatore (Versatile Thermostat)",
                     "radiator_valve_entity_id": "Valvola del radiatore (climate fisico)",
@@ -582,6 +587,7 @@
             "pdc_control_not_confirmed": "Conferma l'attivazione, oppure torna indietro e scegli observe"
         },
         "abort": {
+            "heating_session_active": "Concludi le sessioni PDC e gli override stanza prima di cambiare questa configurazione.",
             "already_configured": "Il dispositivo è gia configurato"
         }
     },
@@ -872,6 +878,7 @@
                 "title": "Orchestrazione caldaia - {name}",
                 "description": "Orchestrazione della caldaia. `observe` valuta e pubblica soltanto. `control` permette a questa integrazione di portare il master della caldaia tra heat e off; richiede i controller esterni indicati sotto e chiede una conferma nel passo successivo. Le stanze si aggiungono dopo.",
                 "data": {
+                    "native_boiler_inputs": "Usa il consenso nativo della caldaia",
                     "mode": "Modalità",
                     "master_entity_id": "Master caldaia (climate)",
                     "central_mode_entity_id": "Modo centrale (select)",
@@ -907,7 +914,7 @@
                 }
             },
             "heating_orchestration_rooms": {
-                "title": "Stanze dell'orchestrazione caldaia - {name}",
+                "title": "Stanze dell'orchestrazione caldaia",
                 "description": "Stanze configurate: {rooms}",
                 "menu_options": {
                     "heating_orchestration_add_room": "Aggiungi una stanza",
@@ -919,6 +926,9 @@
                 "title": "Aggiungi una stanza - {name}",
                 "description": "Associa un Versatile Thermostat all'orchestrazione caldaia. Valvole e sensore finestra sono letti dai suoi attributi. Stanze configurate: {rooms}",
                 "data": {
+                    "scheduler_entity_ids": "Programmi Scheduler della stanza",
+                    "program_owner_entity_ids": "Automazioni legacy del programma",
+                    "workday_entity_id": "Sensore giorno lavorativo",
                     "room_key": "Chiave stanza",
                     "climate_entity_id": "Termostato della stanza (Versatile Thermostat)",
                     "pilot_filter": "Soggetta al filtro pilota",
@@ -1073,6 +1083,7 @@
                 "title": "Aggiungi una stanza con pompa di calore",
                 "description": "Radiatore, split e termostato PDC della stanza, più gli helper delle automazioni attuali (solo letti in observe). Stanze configurate: {rooms}",
                 "data": {
+                    "automatic_enabled": "Se non è collegato un helper, abilita l'automatico PDC nativo",
                     "room_key": "Chiave stanza",
                     "radiator_entity_id": "Termostato del radiatore (Versatile Thermostat)",
                     "radiator_valve_entity_id": "Valvola del radiatore (climate fisico)",
@@ -1164,6 +1175,7 @@
             "pdc_control_not_confirmed": "Conferma l'attivazione, oppure torna indietro e scegli observe"
         },
         "abort": {
+            "heating_session_active": "Concludi le sessioni PDC e gli override stanza prima di cambiare questa configurazione.",
             "already_configured": "Device is already configured"
         }
     },

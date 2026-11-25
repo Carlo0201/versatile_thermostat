@@ -276,7 +276,7 @@ CASES = [
         "fail",
         "no_active_valve",
     ),
-    ("valve with invalid count", {COUNT: {"state": "9", "attributes": {"active_device_ids": ["climate.v_liv_1"]}}}, "living", "valve_active", "pass", None),
+    ("valve with invalid count", {COUNT: {"state": "9", "attributes": {"active_device_ids": ["climate.v_liv_1"]}}}, "living", "valve_active", "unknown", "count_invalid"),
     ("valve without count ids", {COUNT: {"state": "3", "attributes": {}}}, "living", "valve_active", "unknown", "count_invalid"),
     ("pdc session active", {"input_boolean.bedroom_pdc": {"state": "on"}}, "bedroom", "pdc_released", "fail", "pdc_session_active"),
     ("pdc split not off", {"climate.bedroom_split": {"state": "heat"}}, "bedroom", "pdc_released", "fail", "split_not_off"),

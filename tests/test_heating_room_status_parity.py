@@ -113,6 +113,7 @@ def compare(name):
     ref = REFERENCE[name]
     # The condition id is unique only inside its stage (``central_mode``, ``temperature``, ``cooldown``... exist in two).
     by_id = {(item.stage, item.id): item.status for item in ours.conditions}
+    assert len(by_id) == len(ours.conditions), f"{name}: duplicate condition within a stage"
     RADIATOR_STAGE = {
         "hvac_enabled": "ready",
         "room_ready": "ready",
@@ -201,7 +202,7 @@ def test_every_scenario_has_a_card_reference_without_errors():
     assert len(REFERENCE) >= 70
 
 
-def test_the_reference_was_made_from_the_card_files_recorded_in_it():
+def test_the_reference_records_the_expected_card_files_and_hash_format():
     data = json.loads((FIXTURES / "reference_card.json").read_text(encoding="utf-8"))
     assert set(data["generated_from"]) >= {"heatingChecklist.js", "roomExplanation.js", "nativeBoilerControl.js"}
     assert all(re.fullmatch(r"[0-9a-f]{64}", value) for value in data["generated_from"].values())

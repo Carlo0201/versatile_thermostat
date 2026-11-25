@@ -65,6 +65,7 @@ from .const import (
 )
 from .heating_boiler_collector import ROOM_KEY_PATTERN
 from .heating_pdc_collector import ROOM_KEY_PATTERN as PDC_ROOM_KEY_PATTERN
+from .heating_room_status import empty_room_attributes
 
 _LOGGER = get_vtherm_logger(__name__)
 
@@ -102,10 +103,13 @@ async def async_setup_entry(
             # PDC (heat pump) diagnostic, one per configured room (a refused or invalid configuration shows its error)
             ho_section = entry.data.get(CONF_HEATING_ORCHESTRATION)
             pdc_section = ho_section.get(CONF_HO_PDC_RUNTIME) if isinstance(ho_section, dict) else None
-            for room in (pdc_section.get("rooms") if isinstance(pdc_section, dict) else None) or []:
-                room_key = room.get("room_key") if isinstance(room, dict) else None
-                if isinstance(room_key, str) and PDC_ROOM_KEY_PATTERN.match(room_key):
-                    entities = entities + [HeatingOrchestrationPdcSensor(hass, entry, room_key)]
+            pdc_rooms = pdc_section.get("rooms") if isinstance(pdc_section, dict) else None
+            if isinstance(pdc_rooms, list):
+                pdc_keys = dict.fromkeys(
+                    room["room_key"] for room in pdc_rooms
+                    if isinstance(room, dict) and isinstance(room.get("room_key"), str) and PDC_ROOM_KEY_PATTERN.fullmatch(room["room_key"])
+                )
+                entities += [HeatingOrchestrationPdcSensor(hass, entry, key) for key in pdc_keys]
     else:
         entities = [
             LastTemperatureSensor(hass, unique_id, name, entry.data),
@@ -1176,13 +1180,13 @@ def _cleanup_removed_pdc_sensors(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 def _configured_room_keys(entry: ConfigEntry) -> list[str] | None:
     """The room keys of the orchestration section, or ``None`` when the section cannot be read unambiguously."""
-    section = entry.data.get(CONF_HEATING_ORCHESTRATION)
+    section = entry.data.get(CONF_HEATING_ORCHESTRATION, {})
     if not isinstance(section, dict):
         return None
     rooms = section.get("rooms", [])
     if not isinstance(rooms, list) or any(not isinstance(room, dict) or not isinstance(room.get("room_key"), str) or not ROOM_KEY_PATTERN.fullmatch(room["room_key"]) for room in rooms):
         return None
-    return [room["room_key"] for room in rooms]
+    return list(dict.fromkeys(room["room_key"] for room in rooms))
 
 
 @callback
@@ -1338,7 +1342,9 @@ class HeatingOrchestrationRoomSensor(SensorEntity):
         api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(self._hass)
         manager = api.heating_orchestration_manager if api else None
         if manager is None or manager.entry_id != self._entry_id:
-            self._async_publish("error", {"schema_version": 1, "room_key": self._room_key, "mode": "disabled", "last_error": "manager_missing"})
+            self._async_publish("error", empty_room_attributes(
+                self._room_key, None, mode="disabled", evaluated_at=None, generation=0, last_error="manager_missing",
+            ))
             return
         self._detach = manager.attach_room(self._room_key, self._async_publish, self.entity_id)
 

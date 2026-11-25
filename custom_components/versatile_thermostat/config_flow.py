@@ -811,10 +811,12 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
             # The PDC part of the section is edited by its own steps: it is carried over untouched.
             # The PDC confirmation is carried over too: editing the boiler does not change the PDC
             # configuration, so it must not ask for the PDC confirmation again.
-            for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME, CONF_HO_PDC_CONTROL_CONFIRMED):
+            for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME, CONF_HO_PDC_CONTROL_CONFIRMED, "pdc_handover_confirmed"):
                 if key in section:
                     candidate[key] = section[key]
             mode = candidate.get(CONF_HO_MODE)
+            if mode == HO_MODE_CONTROL and candidate.get("native_boiler_inputs") is True:
+                candidate.setdefault(CONF_HO_EXTERNAL_OWNERS, [])
             if mode == HO_MODE_CONTROL and not self._ho_allow_control:
                 errors = {CONF_HO_MODE: "ho_unsupported_mode"}
             elif mode != HO_MODE_DISABLED:
@@ -823,9 +825,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
                 errors = self._ho_check(checked, {key.schema for key in schema.schema})
             if not errors:
                 self._infos[CONF_HEATING_ORCHESTRATION] = candidate
-                if mode == HO_MODE_CONTROL:
-                    return await self.async_step_heating_orchestration_control_confirm()
-                if mode == HO_MODE_OBSERVE:
+                if mode in (HO_MODE_CONTROL, HO_MODE_OBSERVE):
                     return await self.async_step_heating_orchestration_rooms()
                 return await self.async_step_menu()
         return self.async_show_form(
@@ -858,6 +858,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
             if user_input.get(CONF_HO_CONTROL_CONFIRM) is True:
                 section = self._ho_section()
                 section[CONF_HO_CONTROL_CONFIRMED] = True
+                section["boiler_handover_confirmed"] = True
                 errors = self._ho_check(section, set())
                 if not errors:
                     self._infos[CONF_HEATING_ORCHESTRATION] = section
@@ -880,7 +881,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         return self.async_show_menu(step_id="heating_orchestration_rooms", menu_options=options, description_placeholders=self._ho_rooms_placeholders())
 
     async def async_step_heating_orchestration_rooms_done(self, user_input: dict | None = None) -> FlowResult:
-        """Back to the main menu."""
+        """Confirm the final room bindings before granting control."""
+        section = self._ho_section()
+        if section.get(CONF_HO_MODE) == HO_MODE_CONTROL and section.get(CONF_HO_CONTROL_CONFIRMED) is not True:
+            return await self.async_step_heating_orchestration_control_confirm()
         return await self.async_step_menu()
 
     async def async_step_heating_orchestration_add_room(self, user_input: dict | None = None) -> FlowResult:
@@ -895,6 +899,9 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
                 CONF_HO_ROOM_CLIMATE: user_input.get(CONF_HO_ROOM_CLIMATE),
                 CONF_HO_ROOM_PILOT_FILTER: bool(user_input.get(CONF_HO_ROOM_PILOT_FILTER, False)),
             }
+            for key in ("scheduler_entity_ids", "program_owner_entity_ids", "workday_entity_id"):
+                if user_input.get(key):
+                    room[key] = user_input[key]
             if user_input.get(CONF_HO_PDC_SPLIT) or user_input.get(CONF_HO_PDC_SESSION):
                 room[CONF_HO_ROOM_PDC] = {
                     CONF_HO_PDC_SPLIT: user_input.get(CONF_HO_PDC_SPLIT),
@@ -902,8 +909,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
                 }
             section = self._ho_section()
             section[CONF_HO_ROOMS] = list(section.get(CONF_HO_ROOMS) or []) + [room]
-            errors = self._ho_check(section, {key.schema for key in schema.schema})
+            checked = {**section, CONF_HO_CONTROL_CONFIRMED: True} if section.get(CONF_HO_MODE) == HO_MODE_CONTROL else section
+            errors = self._ho_check(checked, {key.schema for key in schema.schema})
             if not errors:
+                section.pop(CONF_HO_CONTROL_CONFIRMED, None)
                 self._infos[CONF_HEATING_ORCHESTRATION] = section
                 return await self.async_step_heating_orchestration_rooms()
         return self.async_show_form(
@@ -921,6 +930,8 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if user_input is not None:
             removed = set(user_input.get(CONF_HO_ROOMS_TO_REMOVE) or [])
             section[CONF_HO_ROOMS] = [room for room in rooms if room.get(CONF_HO_ROOM_KEY) not in removed]
+            section.pop(CONF_HO_CONTROL_CONFIRMED, None)
+            section.pop("boiler_handover_confirmed", None)
             self._infos[CONF_HEATING_ORCHESTRATION] = section
             return await self.async_step_heating_orchestration_rooms()
         schema = vol.Schema({vol.Optional(CONF_HO_ROOMS_TO_REMOVE, default=[]): selector.SelectSelector(selector.SelectSelectorConfig(options=keys, multiple=True, mode=selector.SelectSelectorMode.LIST))})
@@ -943,6 +954,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         section[CONF_HO_PDC_RUNTIME] = runtime
         # Any change asks for the confirmation again: it is never carried over.
         section.pop(CONF_HO_PDC_CONTROL_CONFIRMED, None)
+        section.pop("pdc_handover_confirmed", None)
         self._infos[CONF_HEATING_ORCHESTRATION] = section
 
     def _pdc_check(self, runtime: dict, field_keys, *, mode: str = HO_MODE_OBSERVE, confirmed: bool = False) -> dict:
@@ -1048,6 +1060,7 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if user_input is not None:
             if user_input.get(CONF_HO_PDC_CONTROL_CONFIRM) is True:
                 section[CONF_HO_PDC_CONTROL_CONFIRMED] = True
+                section["pdc_handover_confirmed"] = True
                 errors = self._pdc_check(self._pdc_runtime(), {CONF_HO_PDC_CONTROL_CONFIRM}, mode=HO_MODE_CONTROL, confirmed=True)
                 if not errors:
                     self._infos[CONF_HEATING_ORCHESTRATION] = section
@@ -1780,5 +1793,17 @@ class VersatileThermostatOptionsFlowHandler(
         )
         await super().async_step_finalize(_)
 
+        old_section = self.config_entry.data.get(CONF_HEATING_ORCHESTRATION)
+        if old_section != self._infos.get(CONF_HEATING_ORCHESTRATION):
+            from .vtherm_central_api import VersatileThermostatAPI
+
+            api = VersatileThermostatAPI.get_vtherm_api(self.hass)
+            pdc = api.heating_pdc_manager if api else None
+            boiler = api.heating_orchestration_manager if api else None
+            if (
+                pdc is not None and pdc.runtime is not None and pdc.runtime.has_active_sessions
+                or boiler is not None and boiler.room_manager is not None and boiler.room_manager.has_override
+            ):
+                return self.async_abort(reason="heating_session_active")
         self.hass.config_entries.async_update_entry(self.config_entry, data=self._infos)
         return self.async_create_entry(title=None, data=None)

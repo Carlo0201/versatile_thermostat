@@ -36,6 +36,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field, replace
+from uuid import uuid4
 from typing import Any, Final, Protocol
 
 from .heating_pdc_collector import (
@@ -155,7 +156,7 @@ CLASSIFY_DELAY_S: Final = 1.0
 MIRROR_DOMAINS: Final = ("input_boolean",)
 PROTECTION_EMERGENCY_GAP_S: Final = 5.0
 # An external owner that is unknown/unavailable/missing (never ``on``) is tolerated this long;
-# after that only the safety OFF of a session of this room is allowed (see _safety_off_allowed).
+# The delay applies only to the notification. Effects stay blocked until the owner is off.
 OWNER_GRACE_S: Final = 30.0
 # A stored timestamp in the future (clock not yet synchronised at start) is rechecked this often
 # instead of blocking the control until the next restart.
@@ -209,6 +210,12 @@ class PdcPorts(Protocol):
     async def unset_inhibition(self, entity_id: str) -> None:
         """VTherm API ``unset_inhibition``. Raises on failure."""
 
+    async def acquire_inhibition(self, entity_id: str, owner: str) -> bool: ...
+
+    async def release_inhibition(self, entity_id: str, owner: str) -> bool: ...
+
+    def owns_inhibition(self, entity_id: str, owner: str) -> bool | None: ...
+
     def inhibition_started(self, entity_id: str) -> bool | None:
         """VTherm API ``is_inhibition_started`` (``None`` when it cannot be asked)."""
 
@@ -252,6 +259,7 @@ class PdcSuspendResult:
 class _Room:
     cfg: PdcRoomConfig
     tx: PdcTransaction
+    inhibition_owner: str | None = None
     ctx: PdcStartContext = EMPTY_CONTEXT
     cycle_raw: dict[str, Any] | None = None
     cycle: PdcCycle = field(default_factory=PdcCycle)
@@ -346,6 +354,13 @@ class PdcRuntime:
     def load_errors(self) -> tuple[str, ...]:
         """Persisted sections that were invalid and dropped."""
         return tuple(self._load_errors)
+
+    @property
+    def has_active_sessions(self) -> bool:
+        """Whether a mode or device binding change requires reconciliation first."""
+        return bool(self._load_errors) or self._suspension.active or any(
+            room.tx.phase != PHASE_IDLE or room.override.active for room in self._rooms.values()
+        )
 
     def transaction(self, room_key: str) -> PdcTransaction:
         """Current transaction of a room."""
@@ -486,6 +501,8 @@ class PdcRuntime:
             override = room.override
             rooms[key] = {
                 "transaction": transaction_to_dict(room.tx),
+                "binding": self._binding(room.cfg),
+                "inhibition_owner": room.inhibition_owner,
                 "override": {"active": override.active, "started_at": override.started_at, "until": override.until, "source": override.source, "provenance": override.provenance},
                 "cycle": room.cycle_raw,
                 "cycle_seeded": room.cycle_seeded,
@@ -542,13 +559,37 @@ class PdcRuntime:
         rooms = data.get("rooms")
         if not isinstance(rooms, Mapping):
             self._load_errors.append("rooms_invalid")
-        for key, room in self._rooms.items():
-            item = rooms.get(key) if isinstance(rooms, Mapping) else None
-            if isinstance(item, Mapping):
+        if not isinstance(rooms, Mapping):
+            return
+        for key, item in rooms.items():
+            if not isinstance(item, Mapping):
+                self._load_errors.append(f"room_store_invalid:{key}")
+                continue
+            room = self._rooms.get(key)
+            try:
+                transaction = transaction_from_dict(item.get("transaction"), key)
+            except (TypeError, ValueError):
+                self._load_errors.append(f"transaction_invalid:{key}")
+                continue
+            override = item.get("override")
+            active = transaction.phase != PHASE_IDLE or isinstance(override, Mapping) and override.get("active") is True
+            if active and (room is None or item.get("binding") != self._binding(room.cfg)):
+                self._load_errors.append(f"active_room_binding_changed:{key}")
+                continue
+            if transaction.inhibition_owned and not (isinstance(item.get("inhibition_owner"), str) and item["inhibition_owner"]):
+                self._load_errors.append(f"inhibition_owner_missing:{key}")
+                continue
+            if room is not None:
                 self._load_room(key, room, item)
         self._reconcile_reservation()
 
+    @staticmethod
+    def _binding(config: PdcRoomConfig) -> list[str]:
+        return [config.radiator_entity_id, config.radiator_valve_entity_id, config.pdc_entity_id, config.split_entity_id]
+
     def _load_room(self, key: str, room: _Room, item: Mapping[str, Any]) -> None:
+        owner = item.get("inhibition_owner")
+        room.inhibition_owner = owner if isinstance(owner, str) and owner else None
         try:
             room.tx = transaction_from_dict(item.get("transaction"), key)
             # A backwards clock jump must not extend a stored session indefinitely.
@@ -605,11 +646,14 @@ class PdcRuntime:
     def _managed_of(room: _Room) -> str:
         return STATE_ON if room.tx.phase != PHASE_IDLE else STATE_OFF
 
-    def _local_inputs(self, room: _Room) -> PdcLocalInputs | None:
+    def _local_inputs(self, room: _Room, now: float) -> PdcLocalInputs | None:
         if self._config.mode != MODE_CONTROL:
             return None
+        program_status = getattr(self._ports, "program_status", None)
         return PdcLocalInputs(
             override=STATE_ON if room.override.active else STATE_OFF,
+            room_manual_regulation=program_status(room.cfg.room_key) if program_status else None,
+            evaluated_at=now,
             managed=self._managed_of(room),
             managed_changed_at=room.managed_changed_at,
             cycle=room.cycle,
@@ -629,7 +673,7 @@ class PdcRuntime:
     def _collect(self, room: _Room, now: float) -> PdcCollection:
         """One coherent read; in ``control`` the local cycle is updated first from the observed split mode."""
         states = self._ports.states()
-        collection = collect_pdc_snapshot(states, room.cfg, self._config, local=self._local_inputs(room), other=self._other_view(states, room))
+        collection = collect_pdc_snapshot(states, room.cfg, self._config, local=self._local_inputs(room, now), other=self._other_view(states, room))
         if self._config.mode == MODE_CONTROL:
             self._seed_cycle(room, states)
             update = observe_split_mode(room.cycle_raw if room.cycle_raw is not None else {}, collection.snapshot.split_mode, collection.snapshot.target, now)
@@ -637,7 +681,7 @@ class PdcRuntime:
                 room.cycle_raw = update
                 room.cycle = parse_pdc_cycle(update)
                 self._save_needed = True
-                collection = collect_pdc_snapshot(states, room.cfg, self._config, local=self._local_inputs(room), other=self._other_view(states, room))
+                collection = collect_pdc_snapshot(states, room.cfg, self._config, local=self._local_inputs(room, now), other=self._other_view(states, room))
         room.snapshot = collection.snapshot
         room.split_action = collection.split_action
         return collection
@@ -698,19 +742,6 @@ class PdcRuntime:
         elif room.owner_soft_since is None:
             room.owner_soft_since = now
 
-    def _safety_off_allowed(self, room: _Room) -> bool:
-        """Only the OFF of PDC VTherm / split, only for a session of this room, only after the tolerance, never with an owner ``on``."""
-        if room.tx.phase == PHASE_IDLE or room.owner_soft_since is None:
-            return False
-        hard, soft = self._owner_blockers(room)
-        if hard or not soft:
-            return False
-        return self._ports.now() - room.owner_soft_since >= OWNER_GRACE_S
-
-    @staticmethod
-    def _is_safety_off(room: _Room, domain: str, service: str, entity_id: str, data: dict[str, Any] | None) -> bool:
-        return domain == "climate" and service == "set_hvac_mode" and (data or {}).get("hvac_mode") == "off" and entity_id in (room.cfg.pdc_entity_id, room.cfg.split_entity_id)
-
     def _only_clock_errors(self) -> bool:
         return bool(self._load_errors) and all(error.startswith("transaction_clock_invalid:") for error in self._load_errors)
 
@@ -746,15 +777,14 @@ class PdcRuntime:
             self._ports.notify(STORE_NOTIFICATION_ID, None, None)
 
     def _note_blocked(self, room: _Room, now: float) -> None:
-        """A blocked room: no evaluation wake except the end of the tolerance (and the retries of the safety OFF)."""
+        """A blocked room: wake at the notification deadline, without sending an effect."""
         self._track_owner_grace(room, now)
         self._cancel_wake(room)
         since = room.owner_soft_since
         pending = room.tx.phase != PHASE_IDLE and since is not None
         expired = pending and now - since >= OWNER_GRACE_S
-        if pending:
-            at = since + OWNER_GRACE_S
-            self._schedule_wake(room, at if at > now else now + PROTECTION_EMERGENCY_GAP_S, now)
+        if pending and not expired:
+            self._schedule_wake(room, since + OWNER_GRACE_S, now)
         notification = f"{room.cfg.room_key}_pdc_owner_unavailable"
         if expired and not room.owner_notified:
             room.owner_notified = True
@@ -762,7 +792,7 @@ class PdcRuntime:
                 notification,
                 "Pompa di calore: proprietario esterno non disponibile",
                 f"{room.cfg.room_key}: un'automazione o uno script dell'interblocco non e' disponibile da piu' di {int(OWNER_GRACE_S)} s con una sessione in corso. "
-                "Vengono inviati solo gli spegnimenti di sicurezza; il radiatore resta sospeso.",
+                "Il controllo resta sospeso finché il proprietario non risulta esplicitamente spento.",
             )
         elif not expired and room.owner_notified:
             room.owner_notified = False
@@ -773,18 +803,6 @@ class PdcRuntime:
         if room.owner_notified:
             room.owner_notified = False
             self._ports.notify(f"{room.cfg.room_key}_pdc_owner_unavailable", None, None)
-
-    async def _safety_off(self, room: _Room) -> None:
-        """Owner unavailable beyond the tolerance with a session in flight: PDC VTherm and split OFF, nothing else, rate limited."""
-        if not self._safety_off_allowed(room):
-            return
-        now = self._ports.now()
-        if room.emergency_last is not None and now - room.emergency_last < PROTECTION_EMERGENCY_GAP_S:
-            return
-        room.emergency_last = now
-        for entity_id in (room.cfg.pdc_entity_id, room.cfg.split_entity_id):
-            if lookup(self._ports.states(), entity_id).state != STATE_OFF:
-                await self._command(room, "climate", "set_hvac_mode", entity_id, {"hvac_mode": "off"})
 
     # -------------------------------------------------------------- the pass
 
@@ -815,7 +833,7 @@ class PdcRuntime:
                     room.cfg.automatic_entity_id,
                     room.cfg.schedule_stop_entity_id,
                 )
-                missing = [entity_id for entity_id in mandatory if lookup(states, entity_id).state is None]
+                missing = [entity_id for entity_id in mandatory if entity_id is not None and lookup(states, entity_id).state is None]
                 if missing or not self._ports.ready():
                     detail = "waiting_for_entities:" + ",".join(missing[:4]) if missing else "waiting_for_home_assistant"
                     self._publish_empty(room, STATE_STARTING, detail, now)
@@ -835,7 +853,6 @@ class PdcRuntime:
             if room.blocked_by:
                 self._note_blocked(room, now)
                 self._publish_blocked(room, now)
-                await self._safety_off(room)
                 return
             self._clear_owner_state(room)
             await self._control_pass(room, epoch)
@@ -871,6 +888,11 @@ class PdcRuntime:
 
     async def _control_step(self, room: _Room, collection: PdcCollection, now: float) -> bool:
         """One decision step. Returns ``True`` when something changed or was sent (the caller reads again)."""
+        if room.tx.phase == PHASE_RUNNING and room.tx.inhibition_owned and collection.snapshot.radiator_inhibited is True:
+            owner = room.inhibition_owner
+            owned = self._ports.owns_inhibition(room.cfg.radiator_entity_id, owner) if owner else None
+            if owned is not True:
+                return await self._return_step(room, collection, now, FAILURE_CONDITIONS_CHANGED, exempt=True)
         if not room.recovered:
             if self._recovery_must_wait(room, collection, now):
                 return False
@@ -966,6 +988,7 @@ class PdcRuntime:
                 room.release_notified = False
                 self._ports.notify(release_notification, None, None)
         if room.tx.phase == PHASE_IDLE and old.phase != PHASE_IDLE:
+            room.inhibition_owner = None
             self._ports.notify(notification, None, None)
             room.release_held = False
             if room.resume_pending:
@@ -1048,9 +1071,12 @@ class PdcRuntime:
 
     async def _begin_session(self, room: _Room, step: PdcStep, before_tx: PdcTransaction, before_res: PdcReservation, now: float) -> bool:
         """The ownership claim must be durable before the radiator is touched: no durable claim, no session."""
+        previous_owner = room.inhibition_owner
+        room.inhibition_owner = uuid4().hex if step.transaction.inhibition_owned else None
         room.tx, self._reservation = step.transaction, step.reservation
         if not await self._save():
             room.tx, self._reservation = before_tx, before_res
+            room.inhibition_owner = previous_owner
             room.last_error = self._last_save_error
             return False
         self._on_tx_changed(room, before_tx, now)
@@ -1063,7 +1089,7 @@ class PdcRuntime:
     async def _command(self, room: _Room, domain: str, service: str, entity_id: str, data: dict[str, Any] | None = None) -> bool:
         if self._config.mode != MODE_CONTROL or self._stopped:
             return False
-        if self._interlock_lost(room) and not (self._is_safety_off(room, domain, service, entity_id, data) and self._safety_off_allowed(room)):
+        if self._interlock_lost(room):
             return False
         payload = {"entity_id": entity_id, **(data or {})}
         try:
@@ -1111,12 +1137,14 @@ class PdcRuntime:
     async def _do_inhibit(self, room: _Room, cmd: PdcCommand) -> None:
         """Place the inhibition, then settle the ownership claim from what the VTherm reports (it may not have been us)."""
         entity_id = room.cfg.radiator_entity_id
-        inhibited_now, marker_before = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
+        owner = room.inhibition_owner
+        inhibited_now, _ = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
         call_sent = False
-        if inhibited_now is False and not self._interlock_lost(room):
+        acquired = False
+        if owner and inhibited_now is False and not self._interlock_lost(room):
             call_sent = True
             try:
-                await self._ports.set_inhibition(entity_id, True)
+                acquired = await self._ports.acquire_inhibition(entity_id, owner)
             except asyncio.CancelledError:
                 raise
             except Exception as err:  # noqa: BLE001
@@ -1124,10 +1152,11 @@ class PdcRuntime:
                 _LOGGER.warning("PDC runtime: set_inhibition(%s) failed: %s", entity_id, err)
         if cmd.token != room.tx.token:
             return
-        inhibited_after, marker_after = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
-        transitioned: bool | None = (marker_after != marker_before) if inhibited_after is True and marker_after is not None else None
-        if inhibited_now is not False:
-            transitioned = False
+        inhibited_after, _ = read_inhibition(lookup(self._ports.states(), entity_id).attributes)
+        owned = self._ports.owns_inhibition(entity_id, owner) if owner else False
+        if acquired or owned is True:
+            inhibited_after = True
+        transitioned = owned if call_sent else False
         now = self._ports.now()
         collection = self._collect(room, now)
         obs = build_observation(room.tx.token, collection.snapshot, now, room.cfg.policy, phase=room.tx.phase, override_off=not room.override.active)
@@ -1153,6 +1182,8 @@ class PdcRuntime:
         safe = (
             tx.phase == PHASE_WAITING_HEAT
             and tx.inhibition_owned
+            and room.inhibition_owner is not None
+            and self._ports.owns_inhibition(room.cfg.radiator_entity_id, room.inhibition_owner) is True
             and obs.override_off is True
             and obs.radiator_stopped is True
             and obs.target_confirmed is True
@@ -1185,8 +1216,10 @@ class PdcRuntime:
         try:
             if self._interlock_lost(room):
                 return
-            await self._ports.unset_inhibition(room.cfg.radiator_entity_id)
-            released = read_inhibition(lookup(self._ports.states(), room.cfg.radiator_entity_id).attributes)[0] is False
+            if room.inhibition_owner is not None:
+                released = await self._ports.release_inhibition(room.cfg.radiator_entity_id, room.inhibition_owner)
+            elif read_inhibition(lookup(self._ports.states(), room.cfg.radiator_entity_id).attributes)[0] is False:
+                released = True
             if not released:
                 room.last_error = room.release_error = "release_not_confirmed"
         except asyncio.CancelledError:

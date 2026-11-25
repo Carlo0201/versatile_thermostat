@@ -84,6 +84,7 @@ class InhibitionManager:
     def __init__(self, vtherm: Any):
         self._vtherm = vtherm
         self._inhibited: bool = False
+        self._owner: str | None = None
         self._entry_stop_requested: bool = False
         self._entry_stop_completed: bool = False
         self._gate: CommandGate = CommandGate.OPEN
@@ -134,6 +135,7 @@ class InhibitionManager:
         return {
             "schema_version": INHIBITION_SCHEMA_VERSION,
             "inhibited": self._inhibited,
+            "owner": self._owner,
             "entry_stop_requested": self._entry_stop_requested,
             "entry_stop_completed": self._entry_stop_completed,
             "command_gate": str(self._gate),
@@ -164,6 +166,8 @@ class InhibitionManager:
         if not (snapshot.get("inhibited") is True or gate in (CommandGate.CLOSED, CommandGate.EXIT_RECONCILING)):
             return
 
+        owner = snapshot.get("owner")
+        self._owner = owner if isinstance(owner, str) and owner else None
         self._inhibited = True
         self._gate = CommandGate.CLOSED
         self._entry_stop_requested = snapshot.get("entry_stop_requested") is True
@@ -212,7 +216,7 @@ class InhibitionManager:
     ##
     ## Transitions
     ##
-    async def async_set(self, stop_underlyings: bool):
+    async def async_set(self, stop_underlyings: bool, *, owner: str | None = None) -> bool:
         """Enter the inhibition. Idempotent while inhibited.
         A cancellation after the gate is closed does not stop the entry: it is
         completed (OFF resolution, entry stop, persistence), then re-raised.
@@ -221,10 +225,11 @@ class InhibitionManager:
         # Last call wins: an unset called after this set must not join an exit started before it
         self._exit_future = None
         async with self._lock:
-            if self._inhibited:
-                _LOGGER.debug("%s - Already inhibited. Nothing is sent again", self)
-                return
+            if self._inhibited or (self._gate is CommandGate.EXIT_RECONCILING and (owner is not None or self._owner is not None)):
+                _LOGGER.debug("%s - Already inhibited or reconciling. Nothing is sent again", self)
+                return self._inhibited and owner is not None and owner == self._owner
 
+            self._owner = owner
             self._is_used = True
             self._exit_pending = False
             self._inhibited = True
@@ -250,6 +255,23 @@ class InhibitionManager:
             await self._async_flush()
             if cancelled is not None:
                 raise cancelled
+            return True
+
+    def owns_inhibition(self, owner: str) -> bool | None:
+        """Check the live, restored gate instead of a potentially stale HA state."""
+        return self._owner == owner if self._is_restored else None
+
+    async def async_release_owned(self, owner: str) -> bool:
+        """Compare and release under the same lock used by all gate writers."""
+        self._check_restored()
+        async with self._lock:
+            if self._owner != owner:
+                return True  # this caller has no remaining claim
+            try:
+                await self._async_exit()
+            finally:
+                await self._async_flush()
+            return self._owner is None
 
     async def async_unset(self):
         """Leave the inhibition. A concurrent call joins the running exit and gets its
@@ -271,7 +293,8 @@ class InhibitionManager:
         try:
             async with self._lock:
                 try:
-                    await self._async_exit()
+                    if self._owner is None:
+                        await self._async_exit()
                 finally:
                     await self._async_flush()
         except asyncio.CancelledError:
@@ -414,6 +437,7 @@ class InhibitionManager:
             raise
 
         self._gate = CommandGate.OPEN
+        self._owner = None
         self._entry_stop_requested = False
         self._entry_stop_completed = False
         self._last_error_code = None

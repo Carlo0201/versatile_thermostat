@@ -297,6 +297,7 @@ def evaluate_ownership(
     external_owners: Sequence[ExternalOwner],
     master_mode: str | None,
     evaluation_valid: bool,
+    allow_no_external_owner: bool = False,
 ) -> Ownership:
     """The controller owns the master only if every condition holds.
 
@@ -314,7 +315,7 @@ def evaluate_ownership(
         return Ownership(False, BLOCK_NOT_CONTROL, owners)
     if not active:
         return Ownership(False, BLOCK_NOT_ACTIVE, owners)
-    if not owners:
+    if not owners and not allow_no_external_owner:
         return Ownership(False, BLOCK_NO_EXTERNAL_OWNER, owners)
     if any(not owner.is_off for owner in owners):
         return Ownership(False, BLOCK_EXTERNAL_OWNER, owners)

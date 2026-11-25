@@ -269,6 +269,7 @@ def build_central_heating_orchestration_schema(allow_control: bool) -> vol.Schem
             ),
             **_HO_CENTRAL_FIELDS,
             vol.Optional(CONF_HO_EXTERNAL_OWNERS): _ho_entity_selector(EXTERNAL_OWNER_DOMAINS, multiple=True),
+            vol.Optional("native_boiler_inputs", default=False): selector.BooleanSelector(),
         }
     )
 
@@ -305,6 +306,9 @@ STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA = vol.Schema(
         vol.Optional(CONF_HO_ROOM_PILOT_FILTER, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_HO_PDC_SPLIT): _ho_entity_selector(SPLIT_DOMAINS),
         vol.Optional(CONF_HO_PDC_SESSION): _ho_entity_selector(SESSION_DOMAINS),
+        vol.Optional("scheduler_entity_ids"): _ho_entity_selector(("switch",), multiple=True),
+        vol.Optional("program_owner_entity_ids"): _ho_entity_selector(EXTERNAL_OWNER_DOMAINS, multiple=True),
+        vol.Optional("workday_entity_id"): _ho_entity_selector(("binary_sensor",)),
     }
 )
 
@@ -341,10 +345,11 @@ STEP_HEATING_PDC_ROOM_SCHEMA = vol.Schema(
         vol.Required(_pdc.KEY_WINDOW): _ho_entity_selector(_pdc.BINARY_DOMAINS),
         vol.Required(_pdc.KEY_SPLIT): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
         vol.Required(_pdc.KEY_PDC): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
-        vol.Required(_pdc.KEY_AUTOMATIC): _ho_entity_selector(_pdc.BINARY_DOMAINS),
-        vol.Required(_pdc.KEY_SCHEDULE_STOP): _ho_entity_selector(_pdc.SCHEDULE_DOMAINS),
-        vol.Required(_pdc.KEY_MANAGED): _ho_entity_selector(_pdc.BINARY_DOMAINS),
-        vol.Required(_pdc.KEY_OVERRIDE): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional(_pdc.KEY_AUTOMATIC): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional(_pdc.KEY_SCHEDULE_STOP): _ho_entity_selector(_pdc.SCHEDULE_DOMAINS),
+        vol.Optional(_pdc.KEY_MANAGED): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional(_pdc.KEY_OVERRIDE): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional("automatic_enabled"): selector.BooleanSelector(),
         vol.Optional(_pdc.KEY_CYCLE): _ho_entity_selector(_pdc.TEXT_DOMAINS),
         vol.Optional(_pdc.KEY_OVERRIDE_TIMER): _ho_entity_selector(_pdc.TIMER_DOMAINS),
         vol.Optional(_pdc.KEY_SCHEDULE_SWITCHES): _ho_entity_selector(("switch",), multiple=True),

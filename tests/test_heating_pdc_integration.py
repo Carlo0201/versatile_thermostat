@@ -61,7 +61,8 @@ def translations(language: str) -> dict:
 
 def test_the_release_offers_pdc_control_only_through_the_gated_options_flow():
     const = constants("const.py")
-    assert const["HO_PDC_CONTROL_ENABLED"] is True
+    assert "import PDC_CONTROL_AVAILABLE as HO_PDC_CONTROL_ENABLED" in text("const.py")
+    assert c.PDC_CONTROL_AVAILABLE is True
     assert const["HO_PDC_SELECTABLE_MODES"] == ["disabled", "observe"]
     assert "control" not in const["HO_PDC_SELECTABLE_MODES"]
     schema = text("config_schema.py")
@@ -88,7 +89,8 @@ def test_the_release_offers_pdc_control_only_through_the_gated_options_flow():
 
 def test_the_manager_and_parser_require_explicit_opt_in_for_control():
     manager = text("feature_heating_pdc_manager.py")
-    assert constants("feature_heating_pdc_manager.py")["PDC_CONTROL_AVAILABLE"] is True
+    assert "PDC_CONTROL_AVAILABLE," in manager
+    assert c.PDC_CONTROL_AVAILABLE is True
     assert "allow_control=PDC_CONTROL_AVAILABLE" in manager and manager.count("allow_control=PDC_CONTROL_AVAILABLE") == 2
     assert "PDC_CONTROL_AVAILABLE" not in text("config_flow.py") + text("__init__.py") + text("vtherm_central_api.py") + text("sensor.py")
     with pytest.raises(c.PdcConfigError) as err:
@@ -145,7 +147,7 @@ def test_an_entry_without_the_new_keys_is_not_touched():
     assert "CONF_HO_PDC_RUNTIME" in block and "pdc_section" in block
     # the boiler part of the flow only carries the PDC keys over
     flow = text("config_flow.py")
-    assert "for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME, CONF_HO_PDC_CONTROL_CONFIRMED):" in flow
+    assert "for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME, CONF_HO_PDC_CONTROL_CONFIRMED, \"pdc_handover_confirmed\"):" in flow
     assert constants("const.py")["HO_STORAGE_VERSION"] == 2 and constants("const.py")["HO_STORAGE_KEY_PREFIX"] == "versatile_thermostat.heating_orchestration"
 
 
@@ -211,6 +213,7 @@ def test_every_form_field_and_every_error_code_of_the_pdc_flow_is_translated():
         c.KEY_SPLIT,
         c.KEY_PDC,
         c.KEY_AUTOMATIC,
+        "automatic_enabled",
         c.KEY_SCHEDULE_STOP,
         c.KEY_MANAGED,
         c.KEY_OVERRIDE,
@@ -226,9 +229,10 @@ def test_every_form_field_and_every_error_code_of_the_pdc_flow_is_translated():
         assert set(en[section]["step"]["heating_pdc_add_room"]["data"]) <= room_fields
         codes = {value for name, value in vars(c).items() if name.startswith("ERR_") and isinstance(value, str)}
         assert {f"pdc_{code}" for code in codes} <= set(en[section]["error"]), sorted({f"pdc_{code}" for code in codes} - set(en[section]["error"]))
-    for key in room_fields:
-        assert f"_pdc.KEY_" in schema_text  # every field is built from the collector keys
-    assert len(room_fields) == 17
+    for key in room_fields - {"automatic_enabled"}:
+        constant = next(name for name, value in vars(c).items() if name.startswith("KEY_") and value == key)
+        assert f"_pdc.{constant}" in schema_text
+    assert 'vol.Optional("automatic_enabled")' in schema_text
 
 
 def test_the_translation_files_are_valid_and_keep_their_format():

@@ -264,7 +264,10 @@ class FeatureCentralBoilerManager(BaseFeatureManager):
         """Make a call to a service if correctly configured.
         Raises HomeAssistantError if the service cannot be called (template rendering included)
         so that the caller does not update the boiler state"""
-        if not service_config:
+        native = getattr(self._vtherm_api, "heating_orchestration_manager", None)
+        if not service_config or (
+            native is not None and native.mode == "control" and native.config is not None and native.config.native_boiler_inputs
+        ):
             return
 
         service_data = service_config["data"]

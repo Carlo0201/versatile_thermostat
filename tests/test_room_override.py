@@ -318,13 +318,16 @@ def test_start_is_refused_while_the_legacy_owner_is_not_exactly_off():
     run(scenario())
 
 
-def test_the_end_is_allowed_even_if_the_legacy_owner_came_back():
+def test_the_end_waits_if_the_legacy_owner_came_back():
     async def scenario():
         plant = Plant(legacy=(TIMER_OWNER,))
         await plant.runtime.start()
         await plant.runtime.start_override("cucina", 60)
-        plant.set(TIMER_OWNER, "on")  # somebody re-enabled it: refusing the end would leave the program off for good
+        plant.set(TIMER_OWNER, "on")
         await plant.advance(3700)
+        assert plant.states[WEEK][0] == "off" and plant.runtime.state("cucina").active
+        plant.set(TIMER_OWNER, "off")
+        await plant.advance(180)
         assert plant.states[WEEK][0] == "on" and not plant.runtime.state("cucina").active
 
     run(scenario())

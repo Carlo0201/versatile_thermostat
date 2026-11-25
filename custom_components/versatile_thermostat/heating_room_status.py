@@ -135,7 +135,6 @@ _PUMP_PHASES: Final = {
     "releasing": "returning_radiator",
     "return_unconfirmed": "return_unconfirmed",
 }
-_PUMP_FAILURES: Final = ("trv_unconfirmed", "target_unconfirmed", "split_unconfirmed", "conditions_changed", "return_unconfirmed")
 _PUBLISH_FRESH_MIN_S: Final = -2.0
 _PUBLISH_FRESH_MAX_S: Final = 45.0
 _SNAKE_RE: Final = re.compile(r"(?<!^)(?=[A-Z])")
@@ -599,9 +598,9 @@ def _ready_and_demand(
         valve_cond = _condition("valve_active", STAGE_DEMAND, CONDITION_UNKNOWN, "not_evaluated", expected=">=1", unit="count")
     else:
         # The collector skips the valves of a room already excluded for another reason: same expression, read directly.
-        _, _, ids = _count_validity(states, active_count_entity_id)
+        count_valid, _, ids = _count_validity(states, active_count_entity_id)
         underlying = _underlying_ids(over)
-        if not _is_jinja_sequence(ids):
+        if not count_valid or not _is_jinja_sequence(ids):
             valve_cond = _condition("valve_active", STAGE_DEMAND, CONDITION_UNKNOWN, EXCLUSION_COUNT_INVALID, expected=">=1", unit="count")
         else:
             try:
@@ -635,15 +634,15 @@ def _controller_condition(controller: ControllerView | None) -> RoomCondition:
     return _condition("controller", STAGE_BOILER, CONDITION_FAIL, "not_owner", actual=controller.owner, expected="controller")
 
 
-def _boiler_conditions(eligible: bool, codes: tuple[str, ...], decision: BoilerDecision | None, controller: ControllerView | None, unavailable: bool) -> list[RoomCondition]:
-    if EXCLUSION_NOT_BOILER_PARTICIPANT in codes:
+def _boiler_conditions(eligible: bool, codes: tuple[str, ...], decision: BoilerDecision | None, controller: ControllerView | None, participates: bool | None) -> list[RoomCondition]:
+    if participates is False:
         # The room is not part of the boiler by configuration: the whole stage does not apply.
         names = ("boiler_participation", "eligible_radiator", "controller")
         conds = [_condition(name, STAGE_BOILER, CONDITION_NA, EXCLUSION_NOT_BOILER_PARTICIPANT if name == "boiler_participation" else None) for name in names]
         conds.extend(_condition(item.id, STAGE_BOILER, CONDITION_NA) for item in (decision.conditions if decision is not None else ()))
         return conds
     conds = [
-        _condition("boiler_participation", STAGE_BOILER, CONDITION_UNKNOWN, "not_evaluated") if unavailable else _condition("boiler_participation", STAGE_BOILER, CONDITION_PASS),
+        _condition("boiler_participation", STAGE_BOILER, CONDITION_UNKNOWN, "not_evaluated") if participates is None else _condition("boiler_participation", STAGE_BOILER, CONDITION_PASS),
         _condition("eligible_radiator", STAGE_BOILER, CONDITION_PASS) if eligible else _condition("eligible_radiator", STAGE_BOILER, CONDITION_FAIL, codes[0] if codes else None),
         _controller_condition(controller),
     ]
@@ -721,7 +720,6 @@ def _explain(
     pump: _PumpReading | None,
     collection: BoilerCollection,
     decision: BoilerDecision | None,
-    eligible_collected: bool,
     start_gap: float,
     states: Mapping[str, Any],
 ) -> tuple[str, str, list[str], float | None]:
@@ -841,7 +839,7 @@ def _pump_object(pump: _PumpReading | None) -> dict[str, Any] | None:
         return None
     return {
         "phase": pump.raw_phase or "idle",
-        "failure": pump.failure if pump.failure in _PUMP_FAILURES else pump.failure,
+        "failure": pump.failure,
         "started_at": pump.started_at,
         "deadline": pump.tx_deadline,
     }
@@ -881,10 +879,10 @@ def evaluate_room_status(
     unavailable = EXCLUSION_ENTITY_UNAVAILABLE in codes
 
     conditions = _ready_and_demand(room, reading, codes, eligible, collection, states, now_s, local_tz, start_gap, active_count_entity_id)
-    conditions.extend(_boiler_conditions(eligible, codes, decision, controller, unavailable))
+    conditions.extend(_boiler_conditions(eligible, codes, decision, controller, None if unavailable else reading.participates))
     conditions.extend(_pump_conditions(pump))
 
-    heat_state, reason, detail, deadline = _explain(room, reading, pump, collection, decision, eligible, start_gap, states)
+    heat_state, reason, detail, deadline = _explain(room, reading, pump, collection, decision, start_gap, states)
     gap = None if reading.current is None or reading.target is None else round(reading.target - reading.current, 3)
     if heat_state == "unknown" and reason in HEAT_STATES:
         reason = "unknown_reason" if reason == "unknown" else reason
@@ -908,10 +906,13 @@ def evaluate_room_status(
     )
 
 
-def room_attributes(status: RoomStatus, *, mode: str, evaluated_at: float, generation: int) -> dict[str, Any]:
+def room_attributes(
+    status: RoomStatus, *, mode: str, evaluated_at: float, generation: int, extra: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Published attributes (schema v1). Raises ``ValueError`` over the size limit."""
     attributes = json_safe(
         {
+            **(extra or {}),
             "schema_version": SCHEMA_VERSION,
             "mode": mode,
             "evaluated_at": evaluated_at,
@@ -941,7 +942,10 @@ def room_attributes(status: RoomStatus, *, mode: str, evaluated_at: float, gener
     return attributes
 
 
-def empty_room_attributes(room_key: str, climate_entity_id: str | None, *, mode: str, evaluated_at: float | None, generation: int, last_error: str | None = None) -> dict[str, Any]:
+def empty_room_attributes(
+    room_key: str, climate_entity_id: str | None, *, mode: str, evaluated_at: float | None,
+    generation: int, last_error: str | None = None, state: str | None = None,
+) -> dict[str, Any]:
     """Attributes of the ``disabled``, ``starting`` and ``error`` states (no conditions)."""
     return json_safe(
         {
@@ -951,7 +955,7 @@ def empty_room_attributes(room_key: str, climate_entity_id: str | None, *, mode:
             "generation": generation,
             "room_key": room_key,
             "climate_entity_id": climate_entity_id,
-            "heat_state": None,
+            "heat_state": state or (STATE_ERROR if last_error else STATE_DISABLED if mode == "disabled" else STATE_STARTING),
             "reason": None,
             "detail_reasons": [],
             "source": SOURCE_NONE,
@@ -983,6 +987,6 @@ def room_publication_signature(state: str, attributes: Mapping[str, Any]) -> tup
         tuple(attributes.get("detail_reasons") or ()),
         None if attributes.get("blocker") is None else tuple(sorted((str(k), str(v)) for k, v in attributes["blocker"].items())),
         tuple((item.get("key"), item.get("status"), item.get("passed"), item.get("total")) for item in attributes.get("stages") or ()),
-        tuple((item.get("id"), item.get("status"), item.get("reason_code")) for item in attributes.get("conditions") or ()),
+        tuple((item.get("stage"), item.get("id"), item.get("status"), item.get("reason_code")) for item in attributes.get("conditions") or ()),
         None if not attributes.get("pump") else tuple(sorted((str(k), str(v)) for k, v in attributes["pump"].items() if k not in ("started_at", "deadline"))),
     )

@@ -288,7 +288,7 @@ CONF_HO_PDC_MODE = "pdc_mode"
 CONF_HO_PDC_RUNTIME = "pdc_runtime"
 # PDC control gate. It is separate from ``PDC_CONTROL_AVAILABLE`` (the runtime barrier):
 # this one decides whether the options flow may offer ``control`` for explicit confirmation.
-HO_PDC_CONTROL_ENABLED = True
+from .heating_pdc_collector import PDC_CONTROL_AVAILABLE as HO_PDC_CONTROL_ENABLED  # noqa: E402
 SERVICE_PDC_RESUME_AUTOMATIC = "pdc_resume_automatic"
 # Section-level confirmation of the PDC ``control`` mode (sibling of ``pdc_mode``); the
 # manager maps it to the parser key ``control_confirmed``. Never inherited by a change.

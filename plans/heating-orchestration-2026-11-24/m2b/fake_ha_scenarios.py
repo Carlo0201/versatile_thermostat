@@ -359,11 +359,11 @@ async def s12_publication_only_on_significant_change_or_heartbeat():
     gen0 = ctx.mgr.generation
     await ctx.world.advance(15)
     assert ctx.mgr.generation == gen0, "unchanged evaluation younger than the heartbeat is not published"
-    await ctx.world.advance(15)  # 30 s: heartbeat
+    await ctx.world.advance(10)  # 25 s: exact heartbeat
     assert ctx.mgr.generation == gen0 + 1 and attrs(ctx)["evaluated_at"] == ctx.clock.now
     # a new sample alone does not republish
     a = dict(ctx.hass.states.get("climate.vt_living").attributes)
-    a["current_temperature"] = 18.05
+    a["current_temperature"] = 18.01
     ctx.hass.states.async_set("climate.vt_living", "heat", a)
     await h.run_loop()
     assert ctx.mgr.generation == gen0 + 1
@@ -603,6 +603,25 @@ async def s25_surviving_sensor_reattaches_after_failed_unload():
     replacement._publish("detached", {})
     assert pushes[-1] == "reattached"
     await replacement.async_stop()
+
+
+@scenario
+async def s26_master_lost_after_persistence_is_never_commanded():
+    ctx = await make(heat_world())
+    persist = ctx.mgr._async_persist_before_send
+
+    async def lose_master(mode):
+        await persist(mode)
+        if mode == "heat":
+            previous = ctx.hass.states.get(MASTER)
+            ctx.hass.states.async_set(MASTER, "unavailable", previous.attributes)
+
+    ctx.mgr._async_persist_before_send = lose_master
+    await ctx.world.advance(30)
+    await h.run_loop(16)
+    assert ctx.hass.states.get(MASTER).state == "unavailable"
+    assert calls(ctx) == []
+    await ctx.mgr.async_stop()
 
 
 async def main():

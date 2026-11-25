@@ -247,6 +247,7 @@ class RoomJournalRuntime:
             try:
                 await self._ports.save(data)
             except asyncio.CancelledError:
+                self._dirty = True
                 raise
             except Exception as err:  # noqa: BLE001 - the journal never stops the plant
                 self._dirty = True

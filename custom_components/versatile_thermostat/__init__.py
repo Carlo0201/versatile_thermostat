@@ -14,7 +14,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.const import SERVICE_RELOAD, EVENT_HOMEASSISTANT_STARTED
 
 from homeassistant.config_entries import ConfigEntry, ConfigType
-from homeassistant.core import HomeAssistant, CoreState, callback
+from homeassistant.core import HomeAssistant, CoreState, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
@@ -107,6 +107,42 @@ async def async_setup(
         DOMAIN,
         SERVICE_RELOAD,
         _handle_reload,
+    )
+
+    room_key_schema = vol.Match(r"[a-z0-9_]{1,64}\Z")
+
+    def _heating_rooms():
+        manager = api.heating_orchestration_manager
+        if manager is None or not manager.is_running or manager.room_manager is None:
+            raise HomeAssistantError("Heating rooms are not configured")
+        return manager.room_manager
+
+    async def _room_override(call):
+        result = await _heating_rooms().set_override(call.data["room_key"], call.data.get("minutes"), call.context.user_id)
+        if result not in ("started", "restarted", "ended", "pending", "not_active"):
+            raise HomeAssistantError(f"Room override: {result}")
+        return {"result": result}
+
+    async def _room_history(call):
+        arguments = dict(call.data)
+        key = arguments.pop("room_key")
+        return _heating_rooms().history(key, **arguments)
+
+    async_register_admin_service(
+        hass, DOMAIN, "heating_room_override", _room_override,
+        schema=vol.Schema({vol.Required("room_key"): room_key_schema, vol.Optional("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=1440))}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    async_register_admin_service(
+        hass, DOMAIN, "heating_room_history", _room_history,
+        schema=vol.Schema({
+            vol.Required("room_key"): room_key_schema,
+            vol.Optional("since"): vol.Coerce(float),
+            vol.Optional("until"): vol.Coerce(float),
+            vol.Optional("limit"): vol.All(vol.Coerce(int), vol.Range(min=1, max=500)),
+            vol.Optional("offset"): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        }),
+        supports_response=SupportsResponse.ONLY,
     )
 
     if HO_PDC_CONTROL_ENABLED:

@@ -36,7 +36,6 @@ from .room_override_policy import (
     begin_ending,
     failed_attempt,
     is_due,
-    program_externally_resumed,
     program_mode,
     programs_to_run,
     remaining_s,
@@ -199,6 +198,11 @@ class RoomOverrideRuntime:
             except ValueError:
                 return self._fail(room, RESULT_INVALID_DURATION)
             was_active = room.state.active
+            planned = tuple(
+                entity_id for entity_id in room.cfg.scheduler_entity_ids
+                if self._ports.state(entity_id)[0] in SCHEDULER_ENABLED or entity_id in room.state.paused_schedulers
+            )
+            new_state = replace(new_state, paused_schedulers=planned)
             if not await self._save(room, new_state):
                 return self._fail(room, RESULT_SAVE_FAILED)
             room.generation += 1
@@ -244,7 +248,7 @@ class RoomOverrideRuntime:
         if is_due(room.state, self._ports.now()):
             self._wake(room, self._ports.now())
             return False
-        for entity_id in room.cfg.scheduler_entity_ids:
+        for entity_id in room.state.paused_schedulers:
             if self._stopped:
                 return False
             if self._ports.state(entity_id)[0] not in SCHEDULER_ENABLED:
@@ -260,7 +264,7 @@ class RoomOverrideRuntime:
             except Exception as err:  # noqa: BLE001 - retried by the next wake
                 room.last_error = f"scheduler_off_failed:{type(err).__name__}"
                 _LOGGER.warning("Room override %s: turn_off(%s) failed: %s", room.cfg.room_key, entity_id, err)
-        if any(state != SWITCH_OFF for state in self._states(room)):
+        if any(self._ports.state(entity_id)[0] != SWITCH_OFF for entity_id in room.state.paused_schedulers):
             if not room.last_error or not room.last_error.startswith("scheduler_off_failed:"):
                 room.last_error = "scheduler_off_not_confirmed"
             self._wake_later(room)
@@ -315,11 +319,16 @@ class RoomOverrideRuntime:
 
     async def _run_end_commands(self, room: _Room) -> bool:
         ok = True
-        for entity_id in room.cfg.scheduler_entity_ids:
-            if self._stopped:
+        paused = room.state.paused_schedulers
+        for entity_id in paused:
+            if self._stopped or self._legacy_blockers(room):
                 return False
-            if self._ports.state(entity_id)[0] in SCHEDULER_ENABLED:
+            state, _ = self._ports.state(entity_id)
+            if state in SCHEDULER_ENABLED:
                 continue
+            if state != SWITCH_OFF:
+                room.last_error = "scheduler_state_unknown"
+                return False
             try:
                 await self._ports.call_service("switch", "turn_on", entity_id)
             except asyncio.CancelledError:
@@ -328,15 +337,17 @@ class RoomOverrideRuntime:
                 room.last_error = f"scheduler_on_failed:{type(err).__name__}"
                 _LOGGER.warning("Room override %s: turn_on(%s) failed: %s", room.cfg.room_key, entity_id, err)
                 ok = False
-        if not program_externally_resumed(self._states(room)):
+        if any(self._ports.state(entity_id)[0] not in SCHEDULER_ENABLED for entity_id in paused):
             room.last_error = room.last_error or "scheduler_on_not_confirmed"
             return False
         if not ok:
             return False
         workday = self._ports.state(room.cfg.workday_entity_id)[0] if room.cfg.workday_entity_id else None
-        programs = [(entity_id, self._ports.state(entity_id)[1].get("weekdays")) for entity_id in room.cfg.scheduler_entity_ids]
+        programs = [(entity_id, self._ports.state(entity_id)[1].get("weekdays")) for entity_id in paused]
         for entity_id in programs_to_run(programs, self._ports.weekday(), workday):
-            if self._stopped:
+            if entity_id in room.state.resumed_actions:
+                continue
+            if self._stopped or self._legacy_blockers(room) or self._ports.state(entity_id)[0] not in SCHEDULER_ENABLED:
                 return False
             try:
                 await self._ports.call_service("scheduler", "run_action", entity_id)
@@ -346,6 +357,10 @@ class RoomOverrideRuntime:
                 room.last_error = f"run_action_failed:{type(err).__name__}"
                 _LOGGER.warning("Room override %s: run_action(%s) failed: %s", room.cfg.room_key, entity_id, err)
                 ok = False
+            else:
+                room.state = replace(room.state, resumed_actions=(*room.state.resumed_actions, entity_id))
+                if not await self._save(room, room.state):
+                    return False
         return ok
 
     # ----------------------------------------------------------- scheduling
@@ -388,7 +403,9 @@ class RoomOverrideRuntime:
                 await self._end(room, "expired")
                 return
             states = self._states(room)
-            if not room.state.pausing and program_externally_resumed(states):
+            if not room.state.pausing and room.state.paused_schedulers and all(
+                self._ports.state(entity_id)[0] in SCHEDULER_ENABLED for entity_id in room.state.paused_schedulers
+            ):
                 # An already confirmed pause was released externally.
                 room.restore_complete = True
                 await self._end(room, "externally_resumed")
@@ -440,6 +457,9 @@ class RoomOverrideRuntime:
         if not isinstance(rooms, Mapping):
             self._load_error = "rooms_invalid"
             return
+        if any(key not in self._rooms and isinstance(value, Mapping) and value.get("active") is True for key, value in rooms.items()):
+            self._load_error = "active_room_removed"
+            return
         for key, room in self._rooms.items():
             item = rooms.get(key)
             if item is None:
@@ -449,6 +469,13 @@ class RoomOverrideRuntime:
                     raise ValueError("active")
                 if any(not isinstance(item.get(flag, False), bool) for flag in ("ending", "pausing", "restored")):
                     raise ValueError("invalid override phase")
+                if item["active"]:
+                    paused = item.get("paused_schedulers")
+                    resumed = item.get("resumed_actions", ())
+                    if not isinstance(paused, (list, tuple)) or any(entity_id not in room.cfg.scheduler_entity_ids for entity_id in paused):
+                        raise ValueError("invalid saved scheduler binding")
+                    if not isinstance(resumed, (list, tuple)) or any(entity_id not in paused for entity_id in resumed):
+                        raise ValueError("invalid saved scheduler action")
                 room.state = (
                     OverrideState(
                         active=True,
@@ -460,6 +487,8 @@ class RoomOverrideRuntime:
                         pausing=item.get("pausing", False),
                         restored=item.get("restored", False),
                         end_reason=item.get("end_reason"),
+                        paused_schedulers=tuple(item["paused_schedulers"]),
+                        resumed_actions=tuple(item.get("resumed_actions", ())),
                     )
                     if item["active"]
                     else IDLE

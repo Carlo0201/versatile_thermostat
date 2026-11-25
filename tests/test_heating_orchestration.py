@@ -117,12 +117,12 @@ def open_boiler_control_gate(request):
         yield
 
 
-def test_release_gate_keeps_boiler_control_closed():
-    """The first installable release is observe-only: control is not offered nor accepted."""
+def test_release_gate_offers_explicit_boiler_control():
+    """This release offers control through the options flow and still requires confirmation."""
     from custom_components.versatile_thermostat import config_flow as flow_module  # pylint: disable=import-outside-toplevel
 
-    assert manager_module.BOILER_CONTROL_AVAILABLE is False
-    assert flow_module.VersatileThermostatOptionsFlowHandler._ho_allow_control is False  # pylint: disable=protected-access
+    assert manager_module.BOILER_CONTROL_AVAILABLE is True
+    assert flow_module.VersatileThermostatOptionsFlowHandler._ho_allow_control is True  # pylint: disable=protected-access
 
 
 @pytest.fixture(name="clock")

@@ -237,6 +237,23 @@ class Plant:
         if self.inhibit_stops_valve and stop_underlyings:
             self.set(f"climate.trv_{k}", "off")
 
+    async def acquire_inhibition(self, entity_id: str, owner: str) -> bool:
+        old_marker = c.read_inhibition(self.states[entity_id]["attributes"])[1]
+        await self.set_inhibition(entity_id, True)
+        snapshot = self.states[entity_id]["attributes"]["specific_states"]["inhibition"]
+        if snapshot.get("last_transition_at") == old_marker or not snapshot.get("inhibited"):
+            return False
+        snapshot["owner"] = owner
+        return True
+
+    def owns_inhibition(self, entity_id: str, owner: str) -> bool | None:
+        return self.states[entity_id]["attributes"].get("specific_states", {}).get("inhibition", {}).get("owner") == owner
+
+    async def release_inhibition(self, entity_id: str, owner: str) -> bool:
+        if self.owns_inhibition(entity_id, owner):
+            await self.unset_inhibition(entity_id)
+        return not self.owns_inhibition(entity_id, owner)
+
     async def unset_inhibition(self, entity_id: str) -> None:
         self.log.append(("unset", entity_id))
         if self.fail_unset > 0:
@@ -760,7 +777,8 @@ def test_heat_is_revalidated_with_a_fresh_read_right_before_it_is_sent():
         plant2, rt2 = make()
         room2 = rt2._rooms["carlo"]
         room2.recovered = True
-        await plant2.set_inhibition(CARLO_RAD, True)
+        room2.inhibition_owner = "session-test"
+        await plant2.acquire_inhibition(CARLO_RAD, room2.inhibition_owner)
         room2.tx = tr.PdcTransaction(
             "carlo",
             token=3,
@@ -1545,3 +1563,33 @@ def test_the_runtime_module_is_independent_of_home_assistant():
         elif isinstance(node, ast.ImportFrom):
             imported.add(("." * node.level) + (node.module or "").split(".")[0])
     assert not {name for name in imported if name.startswith("homeassistant") or name.startswith("vtherm_api")}, imported
+
+
+def test_a_replaced_inhibition_is_left_in_place_when_the_session_stops():
+    async def scenario():
+        plant, runtime = make()
+        await run_until_running(plant)
+        plant.foreign_inhibit()
+        await plant.advance(60)
+        assert runtime.transaction("carlo").phase == tr.PHASE_IDLE
+        assert plant.states[CARLO_SPLIT]["state"] == "off"
+        assert plant.inhibited() is True
+        assert not any(entry[0] == "unset" for entry in plant.log)
+
+    run(scenario())
+
+
+def test_active_transaction_store_cannot_be_used_for_a_different_radiator():
+    async def scenario():
+        plant, runtime = make()
+        await run_until_running(plant)
+        stored = copy.deepcopy(plant.stored)
+        config = copy.deepcopy(plant.config)
+        from dataclasses import replace
+
+        room = replace(config.rooms[0], radiator_entity_id="climate.replacement")
+        changed = rt_mod.PdcRuntime(replace(config, rooms=(room,)), _PortsView(plant), stored=stored, allow_control=True)
+        assert changed.load_errors == ("active_room_binding_changed:carlo",)
+        assert changed.transaction("carlo").phase == tr.PHASE_IDLE
+
+    run(scenario())

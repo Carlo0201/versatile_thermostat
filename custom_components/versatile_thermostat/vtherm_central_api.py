@@ -1,5 +1,7 @@
 """ The API of Versatile Thermostat"""
 
+from collections.abc import Mapping
+
 from vtherm_api.log_collector import get_vtherm_logger
 from vtherm_api.vtherm_api import VThermAPI
 from homeassistant.config_entries import ConfigEntry
@@ -23,6 +25,7 @@ from .const import (
 from .feature_central_power_manager import FeatureCentralPowerManager
 from .feature_central_boiler_manager import FeatureCentralBoilerManager
 from .feature_heating_orchestration_manager import FeatureHeatingOrchestrationManager
+from .feature_heating_room_manager import HeatingRoomManager
 from .feature_heating_pdc_manager import FeatureHeatingPdcManager, extract_pdc_section
 
 _LOGGER = get_vtherm_logger(__name__)
@@ -255,9 +258,14 @@ class VersatileThermostatAPI(VThermAPI):
         """Create the orchestration manager of the central entry (not started).
         A previous manager is stopped first, so a reload never duplicates observers."""
         await self.async_remove_heating_orchestration_manager()
+        if isinstance(section, Mapping) and section.get("mode") == "control" and section.get("boiler_handover_confirmed") is not True:
+            section = {**section, "control_confirmed": False}
         self._heating_orchestration_manager = FeatureHeatingOrchestrationManager(self.hass, entry.entry_id, section)
-        self._heating_orchestration_manager.pdc_state_provider = self._pdc_state_for_room
-        return self._heating_orchestration_manager
+        manager = self._heating_orchestration_manager
+        manager.pdc_state_provider = self._pdc_state_for_room
+        if manager.config is not None and manager.config.rooms:
+            manager.room_manager = HeatingRoomManager(self.hass, entry.entry_id, manager.config, manager.async_request_evaluation)
+        return manager
 
     @property
     def heating_pdc_manager(self) -> FeatureHeatingPdcManager | None:
@@ -268,13 +276,33 @@ class VersatileThermostatAPI(VThermAPI):
         """Create the PDC manager of the central entry (not started). ``section`` is the ``heating_orchestration``
         section: the PDC reads ``pdc_mode`` and ``pdc_runtime`` from it. A previous manager is stopped first."""
         await self.async_remove_heating_pdc_manager()
-        self._heating_pdc_manager = FeatureHeatingPdcManager(self.hass, entry.entry_id, extract_pdc_section(section))
+        pdc = extract_pdc_section(section)
+        if pdc is not None and pdc.get("mode") == "control" and section.get("pdc_handover_confirmed") is not True:
+            pdc = {**pdc, "control_confirmed": False}
+        self._heating_pdc_manager = FeatureHeatingPdcManager(self.hass, entry.entry_id, pdc)
+        self._heating_pdc_manager.program_status_provider = self._pdc_program_status
         return self._heating_pdc_manager
+
+    def _pdc_program_status(self, room_key: str) -> bool | None:
+        boiler = self._heating_orchestration_manager
+        if boiler is None or boiler.room_manager is None or self._pdc_state_for_room(room_key) is None:
+            return None
+        mode = boiler.room_manager.room_data(room_key).get("program_mode")
+        if mode is None:
+            return None
+        return mode == "manual" or room_key in boiler.room_manager.manual_rooms()
 
     def _pdc_state_for_room(self, room_key: str):
         """Last publication of the PDC manager for a room (read only, for the room status sensors)."""
         manager = self._heating_pdc_manager
-        return None if manager is None else manager.state(room_key)
+        boiler = self._heating_orchestration_manager
+        if manager is None or manager.config is None or boiler is None or boiler.config is None:
+            return None
+        pdc = manager.config.room(room_key)
+        room = next((item for item in boiler.config.rooms if item.room_key == room_key), None)
+        if room is None or pdc is None or (room.split_entity_id, room.climate_entity_id) != (pdc.split_entity_id, pdc.radiator_entity_id):
+            return None
+        return manager.state(room_key)
 
     async def async_remove_heating_pdc_manager(self, entry_id: str | None = None) -> None:
         """Stop and forget the PDC manager (only the one of entry_id when given)"""

@@ -47,6 +47,7 @@ from homeassistant.util import dt as dt_util
 from vtherm_api.log_collector import get_vtherm_logger
 
 from .heating_pdc_collector import (
+    PDC_CONTROL_AVAILABLE,
     MODE_CONTROL,
     MODE_DISABLED,
     STATE_DISABLED,
@@ -67,8 +68,6 @@ CONF_PDC_RUNTIME = "pdc_runtime"
 CONF_PDC_MODE = "pdc_mode"
 #: Key (next to the sub-section) of the explicit confirmation of the PDC ``control`` mode.
 CONF_PDC_CONTROL_CONFIRMED = "pdc_control_confirmed"
-#: Release gate for the runtime. Control still requires a valid, explicitly confirmed configuration.
-PDC_CONTROL_AVAILABLE = True
 PDC_STORAGE_VERSION = 1
 PDC_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration_pdc"
 EVALUATION_INTERVAL = timedelta(seconds=15)
@@ -125,6 +124,25 @@ class _VThermInhibition:
         """Leave the inhibition (the core reconciles the underlyings before opening the gate)."""
         await self._api().unset_inhibition(entity_id)
 
+    def _thermostat(self, entity_id: str) -> Any:
+        component = self._hass.data.get("climate")
+        entity = component.get_entity(entity_id) if component is not None else None
+        if entity is None or not hasattr(entity, "owns_heating_inhibition"):
+            raise HomeAssistantError("native VTherm inhibition is unavailable")
+        return entity
+
+    async def acquire(self, entity_id: str, owner: str) -> bool:
+        return await self._thermostat(entity_id).async_acquire_heating_inhibition(owner)
+
+    async def release(self, entity_id: str, owner: str) -> bool:
+        return await self._thermostat(entity_id).async_release_heating_inhibition(owner)
+
+    def owns(self, entity_id: str, owner: str) -> bool | None:
+        try:
+            return self._thermostat(entity_id).owns_heating_inhibition(owner)
+        except HomeAssistantError:
+            return None
+
     def started(self, entity_id: str) -> bool | None:
         """The VTherm accepts inhibition operations (its snapshot was restored)."""
         try:
@@ -169,6 +187,21 @@ class _HassPorts:
     async def unset_inhibition(self, entity_id: str) -> None:
         self._guard()
         await self._inhibition.unset(entity_id)
+
+    async def acquire_inhibition(self, entity_id: str, owner: str) -> bool:
+        self._guard()
+        return await self._inhibition.acquire(entity_id, owner)
+
+    async def release_inhibition(self, entity_id: str, owner: str) -> bool:
+        self._guard()
+        return await self._inhibition.release(entity_id, owner)
+
+    def owns_inhibition(self, entity_id: str, owner: str) -> bool | None:
+        return self._inhibition.owns(entity_id, owner) if self._commands_allowed else None
+
+    def program_status(self, room_key: str) -> bool | None:
+        provider = self._manager.program_status_provider
+        return provider(room_key) if provider else None
 
     def inhibition_started(self, entity_id: str) -> bool | None:
         return self._inhibition.started(entity_id) if self._commands_allowed else None
@@ -216,6 +249,7 @@ class FeatureHeatingPdcManager:
         self.hass = hass
         self._entry_id = entry_id
         self._clock = clock or _utc_clock
+        self.program_status_provider: Callable[[str], bool | None] | None = None
         self._inhibition = inhibition or _VThermInhibition(hass)
         self._config: PdcConfig | None
         self._config_error: str | None
@@ -321,10 +355,8 @@ class FeatureHeatingPdcManager:
         self._publishers = previous._publishers
         self._suspension_publishers = previous._suspension_publishers
         for room_key, publishers in self._publishers.items():
-            for publisher in list(publishers):
-                publisher(*self.state(room_key))
-        for publisher in list(self._suspension_publishers):
-            publisher(*self.suspension_attributes())
+            self._notify_publishers(publishers, *self.state(room_key))
+        self._notify_publishers(self._suspension_publishers, *self.suspension_attributes())
 
     @callback
     def attach(self, room_key: str, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:  # pylint: disable=unused-argument
@@ -377,10 +409,16 @@ class FeatureHeatingPdcManager:
         if last is not None and last[0] == state and last[1] == material and now - last[2] < PUBLISH_REFRESH_S:
             return  # nothing but the clock changed: the sensor is refreshed at most every 15 s (every power sample would flood it)
         self._last_pushed[room_key] = (state, material, now)
-        for publisher in list(self._publishers.get(room_key, [])):
-            publisher(state, attributes)
-        for publisher in list(self._suspension_publishers):
-            publisher(*self.suspension_attributes())
+        self._notify_publishers(self._publishers.get(room_key, []), state, attributes)
+        self._notify_publishers(self._suspension_publishers, *self.suspension_attributes())
+
+    @staticmethod
+    def _notify_publishers(publishers: list[Publisher], state: str, attributes: dict[str, Any]) -> None:
+        for publisher in list(publishers):
+            try:
+                publisher(state, attributes)
+            except Exception:
+                _LOGGER.exception("PDC diagnostic publication failed")
 
     def _publish_initial(self) -> None:
         if self._config is None:

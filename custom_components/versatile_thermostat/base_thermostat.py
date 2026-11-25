@@ -1243,6 +1243,18 @@ class BaseThermostat(ClimateEntity, RestoreEntity, Generic[T]):
         InhibitionNotStartedError before the startup restore."""
         await self._inhibition.async_unset()
 
+    def owns_heating_inhibition(self, owner: str) -> bool | None:
+        """Whether the inhibition belongs to this orchestration session."""
+        return self._inhibition.owns_inhibition(owner)
+
+    async def async_acquire_heating_inhibition(self, owner: str) -> bool:
+        """Acquire and persist a session's inhibition."""
+        return await self._inhibition.async_set(True, owner=owner)
+
+    async def async_release_heating_inhibition(self, owner: str) -> bool:
+        """Release a verified session's inhibition."""
+        return await self._inhibition.async_release_owned(owner)
+
     @property
     def current_state(self) -> VThermState | None:
         """Get the current state"""

@@ -109,8 +109,8 @@ async def unchanged_evaluations_are_not_republished_until_the_heartbeat():
     await h.run_loop()
     await ctx.world.advance(5)
     check({key: len(value) for key, value in ctx.rooms.items()} == before, "nothing new is written when nothing changed")
-    await ctx.world.advance(30)
-    check(all(len(ctx.rooms[key]) > before[key] for key in before), "refreshed by the heartbeat")
+    await ctx.world.advance(20)
+    check(all(len(ctx.rooms[key]) > before[key] for key in before), "refreshed at the 25 second heartbeat")
     check(ctx.rooms["living"][-1][1]["evaluated_at"] > NOW, "the heartbeat carries the new evaluated_at")
     await ctx.mgr.async_stop()
 
@@ -260,6 +260,25 @@ async def a_rebuilt_manager_adopts_the_room_publishers():
     detach()
     check("sensor.x" not in ctx.mgr._own_entity_ids, "detach releases the own entity id")  # noqa: SLF001
     await replacement.async_stop()
+
+
+@scenario
+async def a_pdc_only_publication_shares_the_boiler_timestamp():
+    ctx = await make()
+    await ctx.world.advance(1)
+    generation = ctx.boiler[-1][1]["generation"]
+    ctx.mgr.pdc_state_provider = lambda key: (
+        "ready", {
+            "schema_version": 1, "mode": "observe", "evaluated_at": ctx.clock.now,
+            "conditions": [{"id": "window", "status": "pass"}],
+        },
+    )
+    ctx.mgr.async_request_evaluation()
+    await h.run_loop()
+    boiler, room = ctx.boiler[-1][1], ctx.rooms["bedroom"][-1][1]
+    check(boiler["generation"] > generation and boiler["generation"] == room["generation"], "PDC-only change shares a new generation")
+    check(boiler["evaluated_at"] == room["evaluated_at"] == ctx.clock.now, "PDC-only change shares the central timestamp")
+    await ctx.mgr.async_stop()
 
 
 async def main():

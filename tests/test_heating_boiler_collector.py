@@ -953,7 +953,8 @@ def test_room_validation():
     assert parse_error(rooms({"room_key": "a", "climate_entity_id": "switch.a"})) == ("invalid_domain", "climate_entity_id")
     assert parse_error(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pilot_filter": "yes"})) == ("invalid_room", "pilot_filter")
     assert parse_error(rooms("garbage")) == ("invalid_room", "rooms")
-    assert parse_error(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pdc": {"split_entity_id": "climate.s"}})) == ("pdc_incomplete", "pdc")
+    split_only = collector.parse_orchestration_config(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pdc": {"split_entity_id": "climate.s"}})).rooms[0]
+    assert split_only.split_entity_id == "climate.s" and split_only.session_entity_id is None
     assert parse_error(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pdc": {"session_entity_id": "input_boolean.s"}})) == ("pdc_incomplete", "pdc")
     assert parse_error(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pdc": "garbage"})) == ("pdc_incomplete", "pdc")
     assert parse_error(rooms({"room_key": "a", "climate_entity_id": "climate.a", "pdc": {"split_entity_id": "climate.a", "session_entity_id": "input_boolean.s"}})) == (

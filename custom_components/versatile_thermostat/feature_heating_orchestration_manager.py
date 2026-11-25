@@ -332,6 +332,7 @@ class FeatureHeatingOrchestrationManager:
         self._room_signatures: dict[str, Any] = {}
         self._room_last_publish: dict[str, float] = {}
         # Set by the central API: ``room_key -> (state, attributes)`` of the PDC manager, or ``None``.
+        self.room_manager = None
         self.pdc_state_provider: Callable[[str], tuple[str, Mapping[str, Any]] | None] | None = None
 
         # Control plane (M2-B).
@@ -448,11 +449,9 @@ class FeatureHeatingOrchestrationManager:
         self._publishers = previous._publishers
         self._own_entity_ids = previous._own_entity_ids
         self._room_publishers = previous._room_publishers
-        self._room_states = previous._room_states
         self._publish(self._state, self._attributes)
-        for room_key, publishers in self._room_publishers.items():
-            for publisher in list(publishers):
-                publisher(*self.room_state(room_key))
+        for room_key in self._room_publishers:
+            self._publish_room(room_key, *self.room_state(room_key))
 
     @callback
     def attach(self, publisher: Publisher, entity_id: str | None = None) -> CALLBACK_TYPE:
@@ -525,15 +524,16 @@ class FeatureHeatingOrchestrationManager:
             self._publish_room(
                 room.room_key,
                 state,
-                empty_room_attributes(room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=now, generation=self._generation, last_error=last_error),
+                empty_room_attributes(room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=now, generation=self._generation, last_error=last_error, state=state),
             )
 
     @callback
-    def _publish_rooms(self, result: EvaluationResult) -> None:
-        """Per-room projection of the very same collection and decision (same clock and generation)."""
+    def _room_updates(self, result: EvaluationResult) -> list[tuple[str, str, dict[str, Any]]]:
+        """Prepare material changes and heartbeats before publishing the shared generation."""
+        updates = []
         config = self._config
         if config is None:
-            return
+            return updates
         controller = ControllerView(self.mode, OWNER_CONTROLLER if self._ownership.is_owner else OWNER_OBSERVER, result.decision.reason)
         provider = self.pdc_state_provider
         tz = dt_util.get_default_time_zone()
@@ -554,22 +554,31 @@ class FeatureHeatingOrchestrationManager:
                     local_tz=tz,
                     active_count_entity_id=config.active_count_entity_id,
                 )
-                attributes = room_attributes(status, mode=self.mode, evaluated_at=result.now, generation=self._generation)
+                attributes = room_attributes(
+                    status, mode=self.mode, evaluated_at=result.now, generation=self._generation + 1,
+                    extra=self.room_manager.room_data(room.room_key) if self.room_manager else None,
+                )
                 state = status.heat_state
             except Exception as err:  # noqa: BLE001 - one room never stops the others or the boiler
                 _LOGGER.warning("%s - room status of %s failed: %s", self, room.room_key, type(err).__name__)
                 state = STATE_ERROR
                 attributes = empty_room_attributes(
-                    room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=result.now, generation=self._generation, last_error=f"evaluation_error:{type(err).__name__}"
+                    room.room_key, room.climate_entity_id, mode=self.mode, evaluated_at=result.now, generation=self._generation + 1, last_error=f"evaluation_error:{type(err).__name__}"
                 )
-            signature = room_publication_signature(state, attributes)
+            signature = (
+                *room_publication_signature(state, attributes),
+                attributes.get("program_mode"),
+                attributes.get("override_active"),
+                attributes.get("override_ends_at"),
+            )
             last = self._room_last_publish.get(room.room_key)
             due = last is None or not 0 <= result.now - last < PUBLISH_HEARTBEAT_S
             if signature == self._room_signatures.get(room.room_key) and not due:
                 continue
             self._room_signatures[room.room_key] = signature
             self._room_last_publish[room.room_key] = result.now
-            self._publish_room(room.room_key, state, attributes)
+            updates.append((room.room_key, state, attributes))
+        return updates
 
     @callback
     def _publish(self, state: str, attributes: dict[str, Any]) -> None:
@@ -593,7 +602,7 @@ class FeatureHeatingOrchestrationManager:
             _LOGGER.warning("%s - room status publication failed: %s", self, type(err).__name__)
 
     @callback
-    def _publish_evaluation(self, state: str, attributes: dict[str, Any], now: float) -> bool:
+    def _publish_evaluation(self, state: str, attributes: dict[str, Any], now: float, *, force: bool = False) -> bool:
         """Publish an evaluation when its significant content changed or at the heartbeat.
 
         Oikos accepts a diagnostic whose ``evaluated_at`` is at most 45 s old, so
@@ -604,7 +613,7 @@ class FeatureHeatingOrchestrationManager:
         """
         signature = publication_signature(state, attributes)
         due = self._last_publish_at is None or not 0 <= now - self._last_publish_at < PUBLISH_HEARTBEAT_S
-        if signature == self._last_signature and not due:
+        if not force and signature == self._last_signature and not due:
             return False
         self._generation += 1
         attributes = {**attributes, "generation": self._generation}
@@ -624,6 +633,10 @@ class FeatureHeatingOrchestrationManager:
             return
         self._store = _OrchestrationStore(self._hass, HO_STORAGE_VERSION, self.store_key)
         await self._async_load_store()
+        if self._stopped:
+            return
+        if self.room_manager is not None:
+            await self.room_manager.start()
         if self._stopped:
             return
         self._running = True
@@ -688,6 +701,8 @@ class FeatureHeatingOrchestrationManager:
             await asyncio.wait({task}, timeout=STORE_FLUSH_TIMEOUT_S)
         self._send_task = None
         self._send_mode = None
+        if self.room_manager is not None:
+            await self.room_manager.stop()
         if self._save_tasks:
             await asyncio.wait(set(self._save_tasks), timeout=STORE_FLUSH_TIMEOUT_S)
         if self._store is not None and self._persistent_key() != self._last_saved_key:
@@ -871,6 +886,7 @@ class FeatureHeatingOrchestrationManager:
             now,
             temperature_unit=self._hass.config.units.temperature_unit,
             local_tz=dt_util.get_default_time_zone(),
+            manual_room_keys=self.room_manager.manual_rooms(max_age_s=120) if self.room_manager else frozenset(),
         )
         decision = evaluate_boiler(build_policy_snapshot(collection), self._cycle, now)
         return EvaluationResult(now=now, collection=collection, decision=decision)
@@ -896,6 +912,7 @@ class FeatureHeatingOrchestrationManager:
             external_owners=self._external_owners_now(),
             master_mode=master_mode,
             evaluation_valid=evaluation_valid,
+            allow_no_external_owner=self._config is not None and self._config.native_boiler_inputs,
         )
 
     def _control_fields(self, status: str | None = None) -> dict[str, Any]:
@@ -961,7 +978,12 @@ class FeatureHeatingOrchestrationManager:
             _LOGGER.exception("%s - publication failed: %s", self, err)
         try:
             self._resubscribe(result.collection.watched_entity_ids)
-            self._deadline_timer.schedule(result.decision.deadline, now)
+            deadlines = [at + PUBLISH_HEARTBEAT_S for at in self._room_last_publish.values()]
+            if self._last_publish_at is not None:
+                deadlines.append(self._last_publish_at + PUBLISH_HEARTBEAT_S)
+            if result.decision.deadline is not None:
+                deadlines.append(result.decision.deadline)
+            self._deadline_timer.schedule(min(deadlines, default=None), now)
             self._command_timer.schedule(None if step is None else step.wake_at, now)
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("%s - scheduling failed: %s", self, err)
@@ -1108,8 +1130,14 @@ class FeatureHeatingOrchestrationManager:
         if current is None or current.send_id != send_id or current.status != STATUS_SENDING:
             self._abandoned()
             return
-        # Last look at the interlock after a possible wait for the save.
-        if not self._read_ownership(result.master_mode, self._complete_evaluation_seen).is_owner:
+        # Re-read both the plant and the interlock after the last await.
+        try:
+            result = self._compute(self._clock())
+        except Exception:
+            _LOGGER.exception("%s - cannot revalidate command after persistence", self)
+            self._cancel_unsent(send_id)
+            return
+        if result.decision.action != mode or not self._read_ownership(result.master_mode, self._complete_evaluation_seen).is_owner:
             _LOGGER.warning("%s - ownership lost before the service call: %s not sent", self, mode)
             self._cancel_unsent(send_id)
             return
@@ -1209,11 +1237,14 @@ class FeatureHeatingOrchestrationManager:
         if decision.reason != self._last_reason:
             _LOGGER.debug("%s - boiler decision %s/%s (%s)", self, decision.action, decision.reason, self.mode)
             self._last_reason = decision.reason
-        self._publish_evaluation(decision.reason, attributes, result.now)
+        updates = []
         try:
-            self._publish_rooms(result)
-        except Exception as err:  # noqa: BLE001 - never blocks the boiler
-            _LOGGER.warning("%s - room status publication failed: %s", self, type(err).__name__)
+            updates = self._room_updates(result)
+        except Exception:
+            _LOGGER.exception("%s - room status evaluation failed", self)
+        self._publish_evaluation(decision.reason, attributes, result.now, force=bool(updates))
+        for key, state, room_attributes in updates:
+            self._publish_room(key, state, room_attributes)
 
     # ------------------------------------------------------------------ logbook
 

@@ -98,7 +98,7 @@ CONFIG_FLOW_MODES: Final = (MODE_DISABLED, MODE_OBSERVE)
 # while False the options flow does not offer ``control`` and the manager refuses a stored
 # ``control`` section (inactive with an explicit error, never control). Set to True only in a
 # release whose control path has been validated in Home Assistant.
-BOILER_CONTROL_AVAILABLE: Final = False
+BOILER_CONTROL_AVAILABLE: Final = True
 CONFIG_ERROR_CONTROL_NOT_AVAILABLE: Final = "control_not_available"
 
 # Expected domains of the configured bindings.
@@ -216,6 +216,9 @@ class RoomBinding:
     pilot_filter: bool = False
     split_entity_id: str | None = None
     session_entity_id: str | None = None
+    scheduler_entity_ids: tuple[str, ...] = ()
+    program_owner_entity_ids: tuple[str, ...] = ()
+    workday_entity_id: str | None = None
 
     @property
     def has_pdc(self) -> bool:
@@ -238,6 +241,7 @@ class OrchestrationConfig:
     legacy_cycle_entity_id: str | None = None
     external_owner_entity_ids: tuple[str, ...] = ()
     control_confirmed: bool = False
+    native_boiler_inputs: bool = False
     rooms: tuple[RoomBinding, ...] = ()
 
     def required_entity_ids(self) -> tuple[str, ...]:
@@ -263,6 +267,10 @@ class OrchestrationConfig:
         ids.extend(self.consent_entity_ids)
         for room in self.rooms:
             ids.append(room.climate_entity_id)
+            ids.extend(room.scheduler_entity_ids)
+            ids.extend(room.program_owner_entity_ids)
+            if room.workday_entity_id:
+                ids.append(room.workday_entity_id)
             if room.split_entity_id:
                 ids.append(room.split_entity_id)
             if room.session_entity_id:
@@ -301,12 +309,24 @@ def _parse_room(item: Any) -> RoomBinding:
             raise OrchestrationConfigError(CONFIG_ERROR_PDC_INCOMPLETE, KEY_ROOM_PDC)
         split = _check_entity_id(pdc.get(KEY_PDC_SPLIT), KEY_PDC_SPLIT, SPLIT_DOMAINS, required=False)
         session = _check_entity_id(pdc.get(KEY_PDC_SESSION), KEY_PDC_SESSION, SESSION_DOMAINS, required=False)
-        if (split is None) != (session is None):
+        if session is not None and split is None:
             raise OrchestrationConfigError(CONFIG_ERROR_PDC_INCOMPLETE, KEY_ROOM_PDC)
         if split is not None and split == climate:
             raise OrchestrationConfigError(CONFIG_ERROR_DUPLICATE_BINDING, KEY_PDC_SPLIT)
     assert climate is not None
-    return RoomBinding(room_key=room_key, climate_entity_id=climate, pilot_filter=pilot_filter, split_entity_id=split, session_entity_id=session)
+    def read_entities(key: str, domains: tuple[str, ...]) -> tuple[str, ...]:
+        ids = item.get(key, ())
+        if not isinstance(ids, (list, tuple)) or len(ids) > 16:
+            raise OrchestrationConfigError(CONFIG_ERROR_INVALID_ENTITY, key)
+        return tuple(dict.fromkeys(_check_entity_id(value, key, domains, required=True) for value in ids))
+
+    return RoomBinding(
+        room_key=room_key, climate_entity_id=climate, pilot_filter=pilot_filter,
+        split_entity_id=split, session_entity_id=session,
+        scheduler_entity_ids=read_entities("scheduler_entity_ids", ("switch",)),
+        program_owner_entity_ids=read_entities("program_owner_entity_ids", EXTERNAL_OWNER_DOMAINS),
+        workday_entity_id=_check_entity_id(item.get("workday_entity_id"), "workday_entity_id", ("binary_sensor",), required=False),
+    )
 
 
 def parse_room_bindings(raw_rooms: Any) -> tuple[RoomBinding, ...]:
@@ -328,6 +348,10 @@ def parse_room_bindings(raw_rooms: Any) -> tuple[RoomBinding, ...]:
         if room.room_key in room_keys:
             raise OrchestrationConfigError(CONFIG_ERROR_DUPLICATE_ROOM, KEY_ROOM_KEY)
         room_keys.add(room.room_key)
+        for scheduler in room.scheduler_entity_ids:
+            if scheduler in entities:
+                raise OrchestrationConfigError(CONFIG_ERROR_DUPLICATE_BINDING, "scheduler_entity_ids")
+            entities.add(scheduler)
         for key, value in ((KEY_ROOM_CLIMATE, room.climate_entity_id), (KEY_PDC_SPLIT, room.split_entity_id), (KEY_PDC_SESSION, room.session_entity_id)):
             if value is None:
                 continue
@@ -363,10 +387,11 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
     pilot_ready = _check_entity_id(section.get(KEY_PILOT_READY), KEY_PILOT_READY, BINARY_INPUT_DOMAINS, required=False)
     legacy = _check_entity_id(section.get(KEY_LEGACY_CYCLE), KEY_LEGACY_CYCLE, LEGACY_CYCLE_DOMAINS, required=False)
 
-    raw_consents = section.get(KEY_CONSENTS)
+    native_inputs = section.get("native_boiler_inputs") is True
+    raw_consents = section.get(KEY_CONSENTS, [] if native_inputs else None)
     if isinstance(raw_consents, str):
         raw_consents = [raw_consents]
-    if not isinstance(raw_consents, Sequence) or len(raw_consents) == 0:
+    if not isinstance(raw_consents, Sequence) or (not raw_consents and not native_inputs):
         raise OrchestrationConfigError(CONFIG_ERROR_REQUIRED, KEY_CONSENTS)
     if len(raw_consents) > MAX_CONSENTS:
         raise OrchestrationConfigError(CONFIG_ERROR_TOO_MANY_CONSENTS, KEY_CONSENTS)
@@ -396,7 +421,7 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
         raw_owners = []
     if isinstance(raw_owners, (bytes, Mapping)) or not isinstance(raw_owners, Sequence):
         raise OrchestrationConfigError(CONFIG_ERROR_INVALID_ENTITY, KEY_EXTERNAL_OWNERS)
-    if mode == MODE_CONTROL and len(raw_owners) == 0:
+    if mode == MODE_CONTROL and not raw_owners and not (native_inputs and section.get(KEY_EXTERNAL_OWNERS) == []):
         raise OrchestrationConfigError(CONFIG_ERROR_REQUIRED, KEY_EXTERNAL_OWNERS)
     if len(raw_owners) > MAX_EXTERNAL_OWNERS:
         raise OrchestrationConfigError(CONFIG_ERROR_TOO_MANY_EXTERNAL_OWNERS, KEY_EXTERNAL_OWNERS)
@@ -433,6 +458,7 @@ def parse_orchestration_config(section: Any) -> OrchestrationConfig:
         legacy_cycle_entity_id=legacy,
         external_owner_entity_ids=owners,
         control_confirmed=confirmed is True,
+        native_boiler_inputs=native_inputs,
         rooms=rooms,
     )
 
@@ -676,7 +702,7 @@ def _pdc_codes(states: Mapping[str, Any], room: RoomBinding) -> list[str]:
         return []
     codes: list[str] = []
     session = _lookup(states, room.session_entity_id)
-    if session is None or session.state != STATE_OFF:
+    if room.session_entity_id is not None and (session is None or session.state != STATE_OFF):
         codes.append(EXCLUSION_PDC_SESSION_ACTIVE if session is not None and session.state == STATE_ON else EXCLUSION_PDC_SESSION_UNKNOWN)
     split = _lookup(states, room.split_entity_id)
     if split is None or split.state != STATE_OFF:
@@ -699,6 +725,7 @@ def collect_boiler_inputs(
     *,
     temperature_unit: str | None = SUPPORTED_TEMPERATURE_UNIT,
     local_tz: tzinfo = timezone.utc,
+    manual_room_keys: frozenset[str] = frozenset(),
 ) -> BoilerCollection:
     """Collect one snapshot at ``now`` (absolute Unix seconds).
 
@@ -806,9 +833,11 @@ def collect_boiler_inputs(
         )
 
     manual = _states(states, config.manual_request_entity_id) if config.manual_request_entity_id else STATE_OFF
+    if config.native_boiler_inputs and not config.manual_request_entity_id:
+        manual = STATE_ON if any(room.room_key in manual_room_keys and room.gap > 0 for room in collected) else STATE_OFF
     pilot = _states(states, config.pilot_filter_entity_id) if config.pilot_filter_entity_id else STATE_OFF
     pilot_ready = _is_state(states, config.pilot_ready_entity_id, STATE_ON) if config.pilot_ready_entity_id else False
-    consent = bool(config.consent_entity_ids) and all(_is_state(states, entity_id, STATE_ON) for entity_id in config.consent_entity_ids)
+    consent = (bool(config.consent_entity_ids) or config.native_boiler_inputs) and all(_is_state(states, entity_id, STATE_ON) for entity_id in config.consent_entity_ids)
     central_view = _lookup(states, config.central_mode_entity_id)
 
     raw = {
