@@ -1,0 +1,39 @@
+{
+ "collector_sha256": "066aa4055edb4bdc76d1ac9f7583aedb9dffe54e9d78ff28123d778b690483b3",
+ "camera_carlo": {
+  "boundary_cases": 116,
+  "grid_cases": 486,
+  "random_cases": 6000,
+  "seed": 20261126,
+  "checked": {
+   "snapshots": 6602,
+   "conditions": 19806,
+   "target_confirmed": 6496,
+   "radiator_true": 19
+  },
+  "branches": {
+   "start": 506,
+   "none": 4734,
+   "stop": 1204,
+   "set_setpoint": 158
+  }
+ },
+ "camera_diego_luisa": {
+  "boundary_cases": 116,
+  "grid_cases": 486,
+  "random_cases": 6000,
+  "seed": 20261127,
+  "checked": {
+   "snapshots": 6602,
+   "conditions": 19806,
+   "target_confirmed": 6498,
+   "radiator_true": 20
+  },
+  "branches": {
+   "start": 513,
+   "none": 4712,
+   "stop": 1227,
+   "set_setpoint": 150
+  }
+ }
+}

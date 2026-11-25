@@ -6,6 +6,7 @@ from typing import Dict
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from vtherm_api.log_collector import get_vtherm_logger
 import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
@@ -176,13 +177,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         entry.async_on_unload(_stop_orchestration)
 
+    # PDC (heat pump) runtime, observe only in this release: created only when the PDC sub-section exists in the
+    # central configuration (absent keys: nothing is created, the entry is unchanged). It never sends a command.
+    pdc = None
+    if entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and _has_pdc_runtime(entry):
+        pdc = await api.async_create_heating_pdc_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
+
+        async def _stop_pdc() -> None:
+            await api.async_remove_heating_pdc_manager(entry.entry_id)
+
+        entry.async_on_unload(_stop_pdc)
+
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
         if orchestration is not None:
             await orchestration.async_start()
+        if pdc is not None:
+            await pdc.async_start()
     except BaseException:
         # A failed setup must not leave a running controller behind.
+        if pdc is not None:
+            await api.async_remove_heating_pdc_manager(entry.entry_id)
         if orchestration is not None:
             await api.async_remove_heating_orchestration_manager(entry.entry_id)
         raise
@@ -231,6 +247,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     had_orchestration = bool(api and entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and api.heating_orchestration_manager is not None)
     if had_orchestration:
         await api.async_remove_heating_orchestration_manager(entry.entry_id)
+    # Same for the PDC runtime: its listeners, timers and workers are cancelled before the platforms go.
+    had_pdc = bool(api and entry.data.get(CONF_THERMOSTAT_TYPE) == CONF_THERMOSTAT_CENTRAL_CONFIG and api.heating_pdc_manager is not None)
+    if had_pdc:
+        await api.async_remove_heating_pdc_manager(entry.entry_id)
 
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         if api:
@@ -244,6 +264,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Unloading the central configuration failed: the boiler orchestration is restarted")
         restored = await api.async_create_heating_orchestration_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
         await restored.async_start()
+    if not unload_ok and had_pdc and _has_pdc_runtime(entry):
+        _LOGGER.warning("Unloading the central configuration failed: the PDC observer is restarted")
+        restored_pdc = await api.async_create_heating_pdc_manager(entry, entry.data.get(CONF_HEATING_ORCHESTRATION))
+        await restored_pdc.async_start()
 
     return unload_ok
 
@@ -256,6 +280,16 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         await Store(hass, HO_STORAGE_VERSION, f"{HO_STORAGE_KEY_PREFIX}.{entry.entry_id}").async_remove()
     except OSError as err:
         _LOGGER.warning("Cannot remove the stored boiler orchestration context: %s", err)
+    try:
+        await Store(hass, 1, f"{HO_PDC_STORAGE_KEY_PREFIX}.{entry.entry_id}").async_remove()
+    except OSError as err:
+        _LOGGER.warning("Cannot remove the stored PDC runtime data: %s", err)
+
+
+def _has_pdc_runtime(entry: ConfigEntry) -> bool:
+    """The central entry carries a PDC sub-section (``heating_orchestration.pdc_runtime``)."""
+    section = entry.data.get(CONF_HEATING_ORCHESTRATION)
+    return isinstance(section, Mapping) and isinstance(section.get(CONF_HO_PDC_RUNTIME), Mapping)
 
 
 # Example migration function

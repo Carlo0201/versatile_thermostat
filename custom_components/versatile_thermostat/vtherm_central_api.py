@@ -23,6 +23,7 @@ from .const import (
 from .feature_central_power_manager import FeatureCentralPowerManager
 from .feature_central_boiler_manager import FeatureCentralBoilerManager
 from .feature_heating_orchestration_manager import FeatureHeatingOrchestrationManager
+from .feature_heating_pdc_manager import FeatureHeatingPdcManager, extract_pdc_section
 
 _LOGGER = get_vtherm_logger(__name__)
 
@@ -48,6 +49,8 @@ class VersatileThermostatAPI(VThermAPI):
         self._central_boiler_manager = FeatureCentralBoilerManager(hass, self)
         # Boiler orchestration observer of the central configuration (None when absent)
         self._heating_orchestration_manager: FeatureHeatingOrchestrationManager | None = None
+        # PDC (heat pump) runtime of the central configuration, observe only (None when absent)
+        self._heating_pdc_manager: FeatureHeatingPdcManager | None = None
 
         # the current time (for testing purpose)
         self._now = None
@@ -254,6 +257,26 @@ class VersatileThermostatAPI(VThermAPI):
         await self.async_remove_heating_orchestration_manager()
         self._heating_orchestration_manager = FeatureHeatingOrchestrationManager(self.hass, entry.entry_id, section)
         return self._heating_orchestration_manager
+
+    @property
+    def heating_pdc_manager(self) -> FeatureHeatingPdcManager | None:
+        """Returns the PDC (heat pump) runtime manager of the central configuration, if any"""
+        return self._heating_pdc_manager
+
+    async def async_create_heating_pdc_manager(self, entry: ConfigEntry, section) -> FeatureHeatingPdcManager:
+        """Create the PDC manager of the central entry (not started). ``section`` is the ``heating_orchestration``
+        section: the PDC reads ``pdc_mode`` and ``pdc_runtime`` from it. A previous manager is stopped first."""
+        await self.async_remove_heating_pdc_manager()
+        self._heating_pdc_manager = FeatureHeatingPdcManager(self.hass, entry.entry_id, extract_pdc_section(section))
+        return self._heating_pdc_manager
+
+    async def async_remove_heating_pdc_manager(self, entry_id: str | None = None) -> None:
+        """Stop and forget the PDC manager (only the one of entry_id when given)"""
+        manager = self._heating_pdc_manager
+        if manager is None or (entry_id is not None and manager.entry_id != entry_id):
+            return
+        self._heating_pdc_manager = None
+        await manager.async_stop()
 
     async def async_remove_heating_orchestration_manager(self, entry_id: str | None = None) -> None:
         """Stop and forget the orchestration manager (only the one of entry_id when given)"""

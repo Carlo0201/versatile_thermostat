@@ -44,6 +44,7 @@ from .heating_boiler_collector import (
     SESSION_DOMAINS,
     SPLIT_DOMAINS,
 )
+from . import heating_pdc_collector as _pdc
 
 
 def get_prop_function_options() -> list[str]:
@@ -304,6 +305,41 @@ STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA = vol.Schema(
         vol.Optional(CONF_HO_ROOM_PILOT_FILTER, default=False): selector.BooleanSelector(),
         vol.Optional(CONF_HO_PDC_SPLIT): _ho_entity_selector(SPLIT_DOMAINS),
         vol.Optional(CONF_HO_PDC_SESSION): _ho_entity_selector(SESSION_DOMAINS),
+    }
+)
+
+# PDC (heat pump) runtime, observe only in this release: ``control`` is not offered.
+# Global step: mode and the two entities shared by the PDC rooms.
+STEP_HEATING_PDC_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_PDC_MODE, default="disabled"): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(HO_PDC_SELECTABLE_MODES), translation_key="heating_pdc_mode", mode=selector.SelectSelectorMode.LIST)
+        ),
+        vol.Optional(_pdc.KEY_POWER): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
+        vol.Optional(_pdc.KEY_CENTRAL_MODE): _ho_entity_selector(_pdc.CENTRAL_MODE_DOMAINS),
+    }
+)
+
+# One PDC room (flat form, stored as a nested element of ``pdc_runtime.rooms``). The two rooms of the
+# installation differ only by ``setpoint_min_c`` and ``manual_preset_bypass``.
+STEP_HEATING_PDC_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required(_pdc.KEY_ROOM_KEY): selector.TextSelector(),
+        vol.Required(_pdc.KEY_RADIATOR): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_VALVE): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_TEMPERATURE): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
+        vol.Required(_pdc.KEY_WINDOW): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_SPLIT): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_PDC): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_AUTOMATIC): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_SCHEDULE_STOP): _ho_entity_selector(_pdc.SCHEDULE_DOMAINS),
+        vol.Required(_pdc.KEY_MANAGED): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_OVERRIDE): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional(_pdc.KEY_CYCLE): _ho_entity_selector(_pdc.TEXT_DOMAINS),
+        vol.Optional(_pdc.KEY_OVERRIDE_TIMER): _ho_entity_selector(_pdc.TIMER_DOMAINS),
+        vol.Optional(_pdc.KEY_SCHEDULE_SWITCHES): _ho_entity_selector(("switch",), multiple=True),
+        vol.Optional(_pdc.KEY_SETPOINT_MIN, default=16): selector.NumberSelector(selector.NumberSelectorConfig(min=5, max=30, step=1, mode=selector.NumberSelectorMode.BOX)),
+        vol.Optional(_pdc.KEY_MANUAL_BYPASS, default=False): selector.BooleanSelector(),
     }
 )
 

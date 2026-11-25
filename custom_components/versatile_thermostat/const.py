@@ -280,6 +280,16 @@ HO_BOILER_SENSOR_SUFFIX = "_heating_orchestration_boiler"
 # Version 2 adds the ``command`` record to the stored cycle (migration from 1).
 HO_STORAGE_VERSION = 2
 HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
+
+# PDC (heat pump) runtime: first release, observe only. It lives in the same section of the central
+# entry, with its own mode (independent of the boiler ``mode``) and its own sub-section. When the keys
+# are absent nothing is created. ``control`` is not selectable and is refused by the manager.
+CONF_HO_PDC_MODE = "pdc_mode"
+CONF_HO_PDC_RUNTIME = "pdc_runtime"
+CONF_HO_PDC_ROOMS_TO_REMOVE = "pdc_rooms_to_remove"
+HO_PDC_SELECTABLE_MODES = ["disabled", "observe"]
+HO_PDC_SENSOR_SUFFIX = "_heating_orchestration_pdc_"
+HO_PDC_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration_pdc"
 CONF_WINDOW_ACTION = "window_action"
 
 CONF_AUTO_START_STOP_LEVEL = "auto_start_stop_level"

@@ -44,6 +44,9 @@ L'integrazione runtime PDC (manager, config, sensori PDC) toccherà file di A: a
 - Subagent: disponibili in questa sessione.
 - Home Assistant: connettore MCP attivo dal pomeriggio del 24/11. Le scritture sull'impianto restano vietate ai worker: oggi solo il Worker D legge, in sola lettura. Qualsiasi scrittura passa dal coordinatore, con backup e ripristino preparati prima.
 - Divario di versione: i test girano su HA 2026.10.4 (versione fissata dal repo), l'impianto è su **2026.11.2**. Un secondo ambiente `…\vtherm-ha-test\venv-ha2611` (HA 2026.11.2) è in preparazione per la prova di compatibilità prima della distribuzione.
+- **25/11 — W1 ha chiuso la review di M2-B** (I-1…I-5, M-1/M-3/M-4). Ricontrollo del coordinatore: test puri della caldaia 459 passed, 1 skipped; traduzioni identiche a `18b72f0`. Commit `e595500` pushato.
+  - Limite nuovo: la memoria dei tentativi non è persistente, quindi riavvii ripetuti di HA con il master guasto possono ripetere 4 invii a ogni avvio.
+  - **W2 ripreso come unico worker**, con la proprietà dei file condivisi: PDC solo in observe, control inaccessibile, integrazione nel lifecycle della centrale.
 - **25/11 mattina — nuovo mandato di Carlo: prima versione installabile in observe.** Regole:
   - **un solo worker alla volta**, review comprese;
   - nessuna campagna di test non necessaria;

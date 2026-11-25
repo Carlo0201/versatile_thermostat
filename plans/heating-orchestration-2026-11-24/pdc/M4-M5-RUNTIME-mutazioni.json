@@ -1,0 +1,402 @@
+{
+ "summary": {
+  "total": 56,
+  "killed": 56,
+  "survived": [],
+  "invalid": []
+ },
+ "results": [
+  {
+   "id": "own_foreign_start_allowed",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_start_refused_without_side_effects[changes4-radiator_inhibited_foreign]"
+   ]
+  },
+  {
+   "id": "own_unknown_start_allowed",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_start_refused_without_side_effects[changes5-radiator_inhibition_unknown]"
+   ]
+  },
+  {
+   "id": "own_claim_dropped_not_applied",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_call_that_found_the_inhibition_already_present_drops_the_claim_and_abandons_the_start"
+   ]
+  },
+  {
+   "id": "own_release_without_ownership",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_call_that_found_the_inhibition_already_present_drops_the_claim_and_abandons_the_start"
+   ]
+  },
+  {
+   "id": "own_manual_always_owned",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_adopt_manual_session_goes_straight_to_override_hold"
+   ]
+  },
+  {
+   "id": "own_foreign_stop_accepted",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_stop_confirmation_of_a_foreign_inhibition_does_not_start_the_pdc"
+   ]
+  },
+  {
+   "id": "own_release_ignores_ownership_runtime",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_engine_never_releases_an_inhibition_the_machine_does_not_own_even_if_told_to"
+   ]
+  },
+  {
+   "id": "own_inhibit_noop_looks_ours",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_a_foreign_inhibition_that_appears_between_the_request_and_the_call_abandons_the_start_without_releasing_it"
+   ]
+  },
+  {
+   "id": "own_marker_not_compared",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_a_foreign_inhibition_without_a_transition_marker_is_still_not_ours"
+   ]
+  },
+  {
+   "id": "heat_without_radiator_stop_at_target",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_the_pdc_is_never_started_without_the_radiator_stop_and_the_target_confirmed"
+   ]
+  },
+  {
+   "id": "heat_without_target_confirmed",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_the_pdc_is_never_started_without_the_radiator_stop_and_the_target_confirmed"
+   ]
+  },
+  {
+   "id": "target_step_without_radiator_stop",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_green_recheck_without_the_radiator_stop_never_reaches_the_target_step[False]"
+   ]
+  },
+  {
+   "id": "running_without_radiator_stop",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_running_is_reached_only_with_split_heat_the_radiator_stopped_and_the_recheck"
+   ]
+  },
+  {
+   "id": "heat_not_revalidated",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_heat_is_revalidated_with_a_fresh_read_right_before_it_is_sent"
+   ]
+  },
+  {
+   "id": "heat_revalidation_skipped",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_heat_is_revalidated_with_a_fresh_read_right_before_it_is_sent"
+   ]
+  },
+  {
+   "id": "start_phase_protection_off",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_the_hard_protections_interrupt_a_start_in_every_phase[waiting_radiator]"
+   ]
+  },
+  {
+   "id": "start_phase_power_limit_off",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_the_hard_protections_interrupt_a_start_in_every_phase[waiting_radiator]"
+   ]
+  },
+  {
+   "id": "off_without_pdc_mode",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_heat_confirmation_waits_20_s_then_fails_with_split_unconfirmed"
+   ]
+  },
+  {
+   "id": "off_without_split_mode",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_return_releases_the_inhibition_only_after_the_split_and_the_pdc_are_confirmed_off"
+   ]
+  },
+  {
+   "id": "off_ignores_heat_in_flight",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_split_off_seen_while_a_heat_command_is_in_flight_is_not_an_end_of_session"
+   ]
+  },
+  {
+   "id": "release_without_fresh_read",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_release_is_dropped_if_the_pdc_comes_back_while_the_state_is_being_saved"
+   ]
+  },
+  {
+   "id": "release_while_suspended",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_suspension_stops_the_pdc_cancels_overrides_blocks_starts_and_holds_the_radiator_inhibition"
+   ]
+  },
+  {
+   "id": "release_back_to_return_dropped",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_release_attempt_is_dropped_if_the_pdc_came_back_in_the_meantime"
+   ]
+  },
+  {
+   "id": "release_unconfirmed_counts",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_failed_release_keeps_the_ownership_the_reservation_and_retries"
+   ]
+  },
+  {
+   "id": "late_off_confirmation_ignored",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_return_unconfirmed_retries_by_itself_and_a_late_off_confirmation_completes_it"
+   ]
+  },
+  {
+   "id": "return_unconfirmed_never_retried",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_return_unconfirmed_retries_by_itself_and_a_late_off_confirmation_completes_it"
+   ]
+  },
+  {
+   "id": "radiator_inhibited_false_shortcut",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_a_failed_release_keeps_the_ownership_the_reservation_and_retries"
+   ]
+  },
+  {
+   "id": "override_exempt_ignored",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_transaction.py::test_protective_and_resume_returns_run_under_an_active_override"
+   ]
+  },
+  {
+   "id": "interlock_missing",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_ownership_is_lost_between_the_decision_and_the_command_nothing_is_sent"
+   ]
+  },
+  {
+   "id": "interlock_not_rechecked_before_command",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_ownership_is_lost_between_the_decision_and_the_command_nothing_is_sent"
+   ]
+  },
+  {
+   "id": "no_write_ahead",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_release_is_dropped_if_the_pdc_comes_back_while_the_state_is_being_saved"
+   ]
+  },
+  {
+   "id": "start_without_durable_claim",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_a_start_is_sequenced_persisted_before_the_inhibition_and_ends_with_heat_confirmed"
+   ]
+  },
+  {
+   "id": "start_without_inhibition_started",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_runtime_does_not_start_while_the_vtherm_inhibition_is_not_started"
+   ]
+  },
+  {
+   "id": "no_classification_deferral",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_release_is_dropped_if_the_pdc_comes_back_while_the_state_is_being_saved"
+   ]
+  },
+  {
+   "id": "override_protection_off",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_power_protection_under_override_stops_the_split_at_once_and_keeps_the_override"
+   ]
+  },
+  {
+   "id": "user_command_never_override",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_an_override_and_a_suspension_publish_the_policy_view_for_diagnostics_only"
+   ]
+  },
+  {
+   "id": "recovery_not_waiting",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_recovery_waits_for_readable_devices_then_goes_on_even_if_they_never_come_back"
+   ]
+  },
+  {
+   "id": "orphan_reservation_kept",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_an_orphan_reservation_is_dropped_and_a_live_one_is_kept"
+   ]
+  },
+  {
+   "id": "suspend_allowed_outside_control",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_observe_sends_no_command_creates_no_transaction_and_persists_nothing"
+   ]
+  },
+  {
+   "id": "inhibition_missing_is_unknown",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_a_nominal_world_gives_the_expected_snapshot"
+   ]
+  },
+  {
+   "id": "inhibition_unreadable_is_false",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_the_inhibition_flag_is_false_only_when_the_vtherm_publishes_it_as_unused_or_off[attributes6-expected6]"
+   ]
+  },
+  {
+   "id": "stop_reading_unknown_is_false",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_radiator_stop_reading_distinguishes_not_stopped_from_not_reported"
+   ]
+  },
+  {
+   "id": "unknown_power_is_zero",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_missing_unknown_and_unavailable_are_never_turned_into_off_zero_or_closed"
+   ]
+  },
+  {
+   "id": "window_reported_instead_of_changed",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_the_window_grace_applies_only_once_the_pdc_is_heating"
+   ]
+  },
+  {
+   "id": "others_unknown_is_off",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_the_other_rooms_are_aggregated_with_unknown_staying_unknown"
+   ]
+  },
+  {
+   "id": "observe_sends_a_command",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_observe_sends_no_command_creates_no_transaction_and_persists_nothing"
+   ]
+  },
+  {
+   "id": "observe_persists",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_observe_sends_no_command_creates_no_transaction_and_persists_nothing"
+   ]
+  },
+  {
+   "id": "observe_touches_the_inhibition",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_observe_sends_no_command_creates_no_transaction_and_persists_nothing"
+   ]
+  },
+  {
+   "id": "control_gate_parser_open",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_collector.py::test_control_is_refused_unless_the_host_opts_in_and_disabled_keeps_whatever_it_holds"
+   ]
+  },
+  {
+   "id": "control_gate_engine_open",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_runtime.py::test_the_control_engine_cannot_be_built_unless_the_host_opts_in"
+   ]
+  },
+  {
+   "id": "control_gate_manager_flag_on",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_the_manager_and_the_parser_refuse_control_and_the_engine_cannot_be_built_in_control_without_an_opt_in"
+   ]
+  },
+  {
+   "id": "control_offered_by_the_flow",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_the_flow_offers_only_disabled_and_observe_for_the_pdc"
+   ]
+  },
+  {
+   "id": "flow_drops_the_pdc_keys",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_an_entry_without_the_new_keys_is_not_touched"
+   ]
+  },
+  {
+   "id": "pdc_manager_not_started",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_the_setup_unload_and_removal_are_wired_with_the_lifecycle_of_the_central_entry"
+   ]
+  },
+  {
+   "id": "pdc_manager_not_removed_on_unload",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_the_setup_unload_and_removal_are_wired_with_the_lifecycle_of_the_central_entry"
+   ]
+  },
+  {
+   "id": "pdc_sensor_recorded",
+   "status": "killed",
+   "by": [
+    "FAILED tests/test_heating_pdc_integration.py::test_the_sensor_is_a_diagnostic_one_per_room_with_unrecorded_volatile_attributes"
+   ]
+  }
+ ]
+}
