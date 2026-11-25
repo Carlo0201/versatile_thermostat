@@ -1,0 +1,84 @@
+﻿{
+ "policy_sha256": "67f866c2c09a3eb9896aa131f853191e8c16993f86c3a4eb24e95296f0bc975e",
+ "baseline_files_hash_verified": 17,
+ "diagnostic_source": {
+  "file": "pdc_diagnostica_2026-11-23.json",
+  "sha256": "20fbc9838d6739b5a2205e1b0baca835f264f5f9a583fbf42a8018aa9f731af3",
+  "origin": {
+   "file": "output/PDC_cicli_override_2026-11-23/config-applicata.json (progetto padre)",
+   "sha256": "2496dbed13aee319d2514e608150a2b73094dea8bcca44e33c3f0d2a30c5a8d0",
+   "path": "verification.diagnostics[i].options.state",
+   "note": "Lettura dopo scrittura del 23/11/2026; non presente in baseline/index.json. Fonte secondaria: da riconfrontare con HA live. Le modifiche successive del 23/11 (PDC_ritardo_finestre, Registro_riscaldamento) non toccano questi template."
+  }
+ },
+ "camera_carlo": {
+  "boundary_cases": 116,
+  "boundary_stats": {
+   "branches": {
+    "start": 24,
+    "none": 62,
+    "stop": 15,
+    "set_setpoint": 15
+   },
+   "journal": 115,
+   "setpoint": 114,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 45,
+   "confirm_running": 33,
+   "protection_stop": 4,
+   "register_writes": 15
+  },
+  "random_cases": 6000,
+  "seed": 20261124,
+  "random_stats": {
+   "branches": {
+    "stop": 1278,
+    "none": 4123,
+    "start": 487,
+    "set_setpoint": 112
+   },
+   "journal": 5870,
+   "setpoint": 5876,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 1895,
+   "confirm_running": 1135,
+   "protection_stop": 14,
+   "register_writes": 1798
+  }
+ },
+ "camera_diego_luisa": {
+  "boundary_cases": 116,
+  "boundary_stats": {
+   "branches": {
+    "start": 22,
+    "none": 63,
+    "stop": 15,
+    "set_setpoint": 16
+   },
+   "journal": 115,
+   "setpoint": 114,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 41,
+   "confirm_running": 33,
+   "protection_stop": 4,
+   "register_writes": 15
+  },
+  "random_cases": 6000,
+  "seed": 20261125,
+  "random_stats": {
+   "branches": {
+    "none": 4181,
+    "stop": 1238,
+    "start": 474,
+    "set_setpoint": 107
+   },
+   "journal": 5892,
+   "setpoint": 5896,
+   "recheck_radiator": 0,
+   "recheck_setpoint": 1942,
+   "confirm_running": 1112,
+   "protection_stop": 18,
+   "register_writes": 1780
+  }
+ }
+}

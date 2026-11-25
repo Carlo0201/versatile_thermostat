@@ -27,6 +27,8 @@ from .config_schema import *  # pylint: disable=wildcard-import, unused-wildcard
 from .vtherm_central_api import VersatileThermostatAPI
 from .commons import check_and_extract_service_configuration
 from .humidity import find_humidity_sensor_candidates
+from .heating_boiler_collector import OrchestrationConfigError, parse_orchestration_config
+from .heating_pdc_collector import PdcConfigError, parse_pdc_config
 
 COMES_FROM = "comes_from"
 PLUGINS_LINK_PLACEHOLDER = "plugins_link"
@@ -60,6 +62,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
 
     VERSION = CONFIG_VERSION
     MINOR_VERSION = CONFIG_MINOR_VERSION
+
+    # The ``control`` mode of the boiler orchestration is offered only by the options
+    # flow of an existing central configuration, behind an explicit confirmation step.
+    _ho_allow_control = False
 
     def __init__(self, infos) -> None:
         super().__init__()
@@ -641,6 +647,10 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if is_central_config and self._infos.get(CONF_USE_CENTRAL_BOILER_FEATURE, False) is True:
             menu_options.append("central_boiler")
 
+        if is_central_config:
+            menu_options.append("heating_orchestration")
+            menu_options.append("heating_pdc")
+
         if self._infos.get(CONF_USE_WINDOW_FEATURE, False) is True:
             menu_options.append("window")
 
@@ -754,9 +764,291 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
 
         return await self.generic_step("central_boiler", schema, user_input, next_step)
 
+    # ----------------------------------------------------------------------
+    # Boiler orchestration (M2-A observe, M2-B control). The section is stored
+    # nested in the entry data, so the generic flat merge is not used.
+    # ----------------------------------------------------------------------
+
+    def _ho_section(self) -> dict:
+        """A copy of the stored orchestration section (never the entry's own dict)."""
+        section = self._infos.get(CONF_HEATING_ORCHESTRATION)
+        return copy.deepcopy(dict(section)) if isinstance(section, Mapping) else {}
+
+    def _ho_check(self, section: dict, field_keys) -> dict:
+        """Validate a candidate section; return the flow errors (empty when valid)."""
+        try:
+            config = parse_orchestration_config(section)
+        except OrchestrationConfigError as err:
+            return {(err.key if err.key in field_keys else "base"): f"ho_{err.code}"}
+        legacy = (config.legacy_cycle_entity_id,) if config.legacy_cycle_entity_id else ()
+        for entity_id in config.configured_entity_ids() + legacy + config.external_owner_entity_ids:
+            if self.hass.states.get(entity_id) is None:
+                _LOGGER.error("Entity id %s doesn't have any state. We cannot use it in the boiler orchestration", entity_id)
+                return {"base": "unknown_entity"}
+        return {}
+
+    def _ho_rooms_placeholders(self) -> dict:
+        rooms = self._ho_section().get(CONF_HO_ROOMS) or []
+        text = ", ".join(f"{room.get(CONF_HO_ROOM_KEY)} ({room.get(CONF_HO_ROOM_CLIMATE)})" for room in rooms if isinstance(room, Mapping))
+        return {**self._placeholders, "rooms": text or "-"}
+
+    async def async_step_heating_orchestration(self, user_input: dict | None = None) -> FlowResult:
+        """Central entities of the boiler orchestration (disabled, observe, and control from the options flow)."""
+        _LOGGER.debug("Into ConfigFlow.async_step_heating_orchestration user_input=%s", user_input)
+        schema = STEP_CENTRAL_HEATING_ORCHESTRATION_OPTIONS_SCHEMA if self._ho_allow_control else STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA
+        section = self._ho_section()
+        errors: dict = {}
+        defaults = dict(section)
+        if user_input is not None:
+            defaults.update(user_input)
+            # The confirmation is never carried over: any change asks for it again.
+            candidate = {key: value for key, value in user_input.items() if value not in (None, "", [])}
+            if section.get(CONF_HO_ROOMS):
+                candidate[CONF_HO_ROOMS] = section[CONF_HO_ROOMS]
+            # The PDC part of the section is edited by its own steps: it is carried over untouched.
+            for key in (CONF_HO_PDC_MODE, CONF_HO_PDC_RUNTIME):
+                if key in section:
+                    candidate[key] = section[key]
+            mode = candidate.get(CONF_HO_MODE)
+            if mode == HO_MODE_CONTROL and not self._ho_allow_control:
+                errors = {CONF_HO_MODE: "ho_unsupported_mode"}
+            elif mode != HO_MODE_DISABLED:
+                # Validate as if confirmed: the confirmation is the next step.
+                checked = {**candidate, CONF_HO_CONTROL_CONFIRMED: True} if mode == HO_MODE_CONTROL else candidate
+                errors = self._ho_check(checked, {key.schema for key in schema.schema})
+            if not errors:
+                self._infos[CONF_HEATING_ORCHESTRATION] = candidate
+                if mode == HO_MODE_CONTROL:
+                    return await self.async_step_heating_orchestration_control_confirm()
+                if mode == HO_MODE_OBSERVE:
+                    return await self.async_step_heating_orchestration_rooms()
+                return await self.async_step_menu()
+        return self.async_show_form(
+            step_id="heating_orchestration",
+            data_schema=add_suggested_values_to_schema(schema, defaults),
+            errors=errors,
+            description_placeholders=self._placeholders,
+        )
+
+    def _ho_control_placeholders(self) -> dict:
+        """Current state of the external controllers and of the master, for the confirmation text."""
+        section = self._ho_section()
+        owners = []
+        for entity_id in section.get(CONF_HO_EXTERNAL_OWNERS) or []:
+            state = self.hass.states.get(entity_id)
+            owners.append(f"{entity_id} ({state.state if state is not None else 'missing'})")
+        return {**self._placeholders, "owners": ", ".join(owners) or "-", "master": str(section.get(CONF_HO_MASTER) or "-")}
+
+    async def async_step_heating_orchestration_control_confirm(self, user_input: dict | None = None) -> FlowResult:
+        """Explicit confirmation that lets the integration command the boiler master.
+
+        Nothing is stored as ``control`` without it. The external controllers may
+        still be active when the mode is confirmed: until all of them are off
+        the controller stays blocked and sends nothing.
+        """
+        if not self._ho_allow_control:
+            return await self.async_step_menu()
+        errors: dict = {}
+        if user_input is not None:
+            if user_input.get(CONF_HO_CONTROL_CONFIRM) is True:
+                section = self._ho_section()
+                section[CONF_HO_CONTROL_CONFIRMED] = True
+                errors = self._ho_check(section, set())
+                if not errors:
+                    self._infos[CONF_HEATING_ORCHESTRATION] = section
+                    return await self.async_step_heating_orchestration_rooms()
+            else:
+                errors = {CONF_HO_CONTROL_CONFIRM: "ho_control_not_confirmed"}
+        return self.async_show_form(
+            step_id="heating_orchestration_control_confirm",
+            data_schema=STEP_HEATING_ORCHESTRATION_CONTROL_CONFIRM_SCHEMA,
+            errors=errors,
+            description_placeholders=self._ho_control_placeholders(),
+        )
+
+    async def async_step_heating_orchestration_rooms(self, user_input: dict | None = None) -> FlowResult:
+        """Menu of the room list of the boiler orchestration."""
+        options = ["heating_orchestration_add_room"]
+        if self._ho_section().get(CONF_HO_ROOMS):
+            options.append("heating_orchestration_remove_room")
+        options.append("heating_orchestration_rooms_done")
+        return self.async_show_menu(step_id="heating_orchestration_rooms", menu_options=options, description_placeholders=self._ho_rooms_placeholders())
+
+    async def async_step_heating_orchestration_rooms_done(self, user_input: dict | None = None) -> FlowResult:
+        """Back to the main menu."""
+        return await self.async_step_menu()
+
+    async def async_step_heating_orchestration_add_room(self, user_input: dict | None = None) -> FlowResult:
+        """Add one room (VTherm, optional pilot filter and PDC bindings)."""
+        schema = STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA
+        errors: dict = {}
+        defaults: dict = {}
+        if user_input is not None:
+            defaults = dict(user_input)
+            room: dict = {
+                CONF_HO_ROOM_KEY: user_input.get(CONF_HO_ROOM_KEY),
+                CONF_HO_ROOM_CLIMATE: user_input.get(CONF_HO_ROOM_CLIMATE),
+                CONF_HO_ROOM_PILOT_FILTER: bool(user_input.get(CONF_HO_ROOM_PILOT_FILTER, False)),
+            }
+            if user_input.get(CONF_HO_PDC_SPLIT) or user_input.get(CONF_HO_PDC_SESSION):
+                room[CONF_HO_ROOM_PDC] = {
+                    CONF_HO_PDC_SPLIT: user_input.get(CONF_HO_PDC_SPLIT),
+                    CONF_HO_PDC_SESSION: user_input.get(CONF_HO_PDC_SESSION),
+                }
+            section = self._ho_section()
+            section[CONF_HO_ROOMS] = list(section.get(CONF_HO_ROOMS) or []) + [room]
+            errors = self._ho_check(section, {key.schema for key in schema.schema})
+            if not errors:
+                self._infos[CONF_HEATING_ORCHESTRATION] = section
+                return await self.async_step_heating_orchestration_rooms()
+        return self.async_show_form(
+            step_id="heating_orchestration_add_room",
+            data_schema=add_suggested_values_to_schema(schema, defaults),
+            errors=errors,
+            description_placeholders=self._ho_rooms_placeholders(),
+        )
+
+    async def async_step_heating_orchestration_remove_room(self, user_input: dict | None = None) -> FlowResult:
+        """Remove rooms from the list."""
+        section = self._ho_section()
+        rooms = [room for room in (section.get(CONF_HO_ROOMS) or []) if isinstance(room, Mapping)]
+        keys = [room.get(CONF_HO_ROOM_KEY) for room in rooms]
+        if user_input is not None:
+            removed = set(user_input.get(CONF_HO_ROOMS_TO_REMOVE) or [])
+            section[CONF_HO_ROOMS] = [room for room in rooms if room.get(CONF_HO_ROOM_KEY) not in removed]
+            self._infos[CONF_HEATING_ORCHESTRATION] = section
+            return await self.async_step_heating_orchestration_rooms()
+        schema = vol.Schema({vol.Optional(CONF_HO_ROOMS_TO_REMOVE, default=[]): selector.SelectSelector(selector.SelectSelectorConfig(options=keys, multiple=True, mode=selector.SelectSelectorMode.LIST))})
+        return self.async_show_form(step_id="heating_orchestration_remove_room", data_schema=schema, description_placeholders=self._ho_rooms_placeholders())
+
+    # ----------------------------------------------------------------------
+    # PDC (heat pump) runtime: observe only in this release. Stored in the same
+    # section as the boiler orchestration (``pdc_mode`` + ``pdc_runtime``), with its
+    # own mode. ``control`` is not selectable and is refused by the parser.
+    # ----------------------------------------------------------------------
+
+    def _pdc_runtime(self) -> dict:
+        """A copy of the stored PDC sub-section."""
+        runtime = self._ho_section().get(CONF_HO_PDC_RUNTIME)
+        return copy.deepcopy(dict(runtime)) if isinstance(runtime, Mapping) else {}
+
+    def _pdc_store(self, mode: str, runtime: dict) -> None:
+        section = self._ho_section()
+        section[CONF_HO_PDC_MODE] = mode
+        section[CONF_HO_PDC_RUNTIME] = runtime
+        self._infos[CONF_HEATING_ORCHESTRATION] = section
+
+    def _pdc_check(self, runtime: dict, field_keys) -> dict:
+        """Validate a candidate PDC sub-section as ``observe``; return the flow errors (empty when valid)."""
+        try:
+            config = parse_pdc_config({**runtime, CONF_HO_MODE: HO_MODE_OBSERVE})
+        except PdcConfigError as err:
+            return {(err.key if err.key in field_keys else "base"): f"pdc_{err.code}"}
+        for entity_id in config.configured_entity_ids():
+            if self.hass.states.get(entity_id) is None:
+                _LOGGER.error("Entity id %s doesn't have any state. We cannot use it in the PDC orchestration", entity_id)
+                return {"base": "unknown_entity"}
+        return {}
+
+    def _pdc_rooms_placeholders(self) -> dict:
+        rooms = self._pdc_runtime().get(CONF_HO_ROOMS) or []
+        text = ", ".join(f"{room.get(CONF_HO_ROOM_KEY)} ({room.get('split_entity_id')})" for room in rooms if isinstance(room, Mapping))
+        return {**self._placeholders, "rooms": text or "-"}
+
+    async def async_step_heating_pdc(self, user_input: dict | None = None) -> FlowResult:
+        """Mode (disabled or observe) and shared entities of the PDC orchestration."""
+        _LOGGER.debug("Into ConfigFlow.async_step_heating_pdc user_input=%s", user_input)
+        schema = STEP_HEATING_PDC_SCHEMA
+        section = self._ho_section()
+        runtime = self._pdc_runtime()
+        errors: dict = {}
+        defaults = {CONF_HO_PDC_MODE: section.get(CONF_HO_PDC_MODE, "disabled"), **runtime}
+        if user_input is not None:
+            defaults.update(user_input)
+            mode = user_input.get(CONF_HO_PDC_MODE)
+            if mode not in HO_PDC_SELECTABLE_MODES:
+                errors = {CONF_HO_PDC_MODE: "pdc_control_not_available" if mode == HO_MODE_CONTROL else "pdc_unsupported_mode"}
+            else:
+                for key in ("power_entity_id", CONF_HO_CENTRAL_MODE):
+                    if user_input.get(key) in (None, ""):
+                        runtime.pop(key, None)
+                    else:
+                        runtime[key] = user_input[key]
+                if mode == HO_MODE_OBSERVE:
+                    missing = [key for key in ("power_entity_id", CONF_HO_CENTRAL_MODE) if not runtime.get(key)]
+                    if missing:
+                        errors = {missing[0]: "pdc_required"}
+                    else:
+                        for key in ("power_entity_id", CONF_HO_CENTRAL_MODE):
+                            if self.hass.states.get(runtime[key]) is None:
+                                errors = {"base": "unknown_entity"}
+                if not errors:
+                    self._pdc_store(mode, runtime)
+                    if mode == HO_MODE_OBSERVE:
+                        return await self.async_step_heating_pdc_rooms()
+                    return await self.async_step_menu()
+        return self.async_show_form(
+            step_id="heating_pdc",
+            data_schema=add_suggested_values_to_schema(schema, defaults),
+            errors=errors,
+            description_placeholders=self._placeholders,
+        )
+
+    async def async_step_heating_pdc_rooms(self, user_input: dict | None = None) -> FlowResult:
+        """Menu of the room list of the PDC orchestration."""
+        options = ["heating_pdc_add_room"]
+        if self._pdc_runtime().get(CONF_HO_ROOMS):
+            options.append("heating_pdc_remove_room")
+        options.append("heating_pdc_rooms_done")
+        return self.async_show_menu(step_id="heating_pdc_rooms", menu_options=options, description_placeholders=self._pdc_rooms_placeholders())
+
+    async def async_step_heating_pdc_rooms_done(self, user_input: dict | None = None) -> FlowResult:
+        """Back to the main menu; an observe without any room is not saved as a silent no-op."""
+        if self._ho_section().get(CONF_HO_PDC_MODE) == HO_MODE_OBSERVE and not self._pdc_runtime().get(CONF_HO_ROOMS):
+            return await self.async_step_heating_pdc_rooms()
+        return await self.async_step_menu()
+
+    async def async_step_heating_pdc_add_room(self, user_input: dict | None = None) -> FlowResult:
+        """Add one PDC room: radiator VTherm and valve, temperature, window, split, PDC VTherm and the helpers."""
+        schema = STEP_HEATING_PDC_ROOM_SCHEMA
+        errors: dict = {}
+        defaults: dict = {}
+        if user_input is not None:
+            defaults = dict(user_input)
+            room = {key: value for key, value in user_input.items() if value not in (None, "", [])}
+            runtime = self._pdc_runtime()
+            runtime[CONF_HO_ROOMS] = list(runtime.get(CONF_HO_ROOMS) or []) + [room]
+            errors = self._pdc_check(runtime, {key.schema for key in schema.schema})
+            if not errors:
+                self._pdc_store(self._ho_section().get(CONF_HO_PDC_MODE, HO_MODE_OBSERVE), runtime)
+                return await self.async_step_heating_pdc_rooms()
+        return self.async_show_form(
+            step_id="heating_pdc_add_room",
+            data_schema=add_suggested_values_to_schema(schema, defaults),
+            errors=errors,
+            description_placeholders=self._pdc_rooms_placeholders(),
+        )
+
+    async def async_step_heating_pdc_remove_room(self, user_input: dict | None = None) -> FlowResult:
+        """Remove PDC rooms from the list."""
+        runtime = self._pdc_runtime()
+        rooms = [room for room in (runtime.get(CONF_HO_ROOMS) or []) if isinstance(room, Mapping)]
+        keys = [room.get(CONF_HO_ROOM_KEY) for room in rooms]
+        if user_input is not None:
+            removed = set(user_input.get(CONF_HO_PDC_ROOMS_TO_REMOVE) or [])
+            runtime[CONF_HO_ROOMS] = [room for room in rooms if room.get(CONF_HO_ROOM_KEY) not in removed]
+            self._pdc_store(self._ho_section().get(CONF_HO_PDC_MODE, HO_MODE_OBSERVE), runtime)
+            return await self.async_step_heating_pdc_rooms()
+        schema = vol.Schema({vol.Optional(CONF_HO_PDC_ROOMS_TO_REMOVE, default=[]): selector.SelectSelector(selector.SelectSelectorConfig(options=keys, multiple=True, mode=selector.SelectSelectorMode.LIST))})
+        return self.async_show_form(step_id="heating_pdc_remove_room", data_schema=schema, description_placeholders=self._pdc_rooms_placeholders())
+
     async def async_step_type(self, user_input: dict | None = None) -> FlowResult:
         """Handle the Type flow steps"""
         _LOGGER.debug("Into ConfigFlow.async_step_type user_input=%s", user_input)
+
+        if user_input is not None and not user_input.get(CONF_AVATTO_ROOM_CONTROL):
+            # Keep the opt-in flag absent for existing and newly configured standard thermostats.
+            user_input = {key: value for key, value in user_input.items() if key != CONF_AVATTO_ROOM_CONTROL}
 
         if self._infos[CONF_THERMOSTAT_TYPE] == CONF_THERMOSTAT_VALVE:
             values = user_input if user_input is not None else self._infos
@@ -1322,6 +1614,12 @@ class VersatileThermostatBaseConfigFlow(FlowHandler):
         if not self._infos[CONF_USE_AUTO_START_STOP_FEATURE]:
             self._infos[CONF_AUTO_START_STOP_LEVEL] = AUTO_START_STOP_LEVEL_NONE
 
+        # Never persist a ``control`` mode that was not explicitly confirmed.
+        ho_section = self._infos.get(CONF_HEATING_ORCHESTRATION)
+        if isinstance(ho_section, Mapping) and ho_section.get(CONF_HO_MODE) == HO_MODE_CONTROL and ho_section.get(CONF_HO_CONTROL_CONFIRMED) is not True:
+            _LOGGER.warning("The boiler control mode was not confirmed: the boiler orchestration is saved in observe mode")
+            self._infos[CONF_HEATING_ORCHESTRATION] = {**ho_section, CONF_HO_MODE: HO_MODE_OBSERVE}
+
         # Removes temporary value
         if COMES_FROM in self._infos:
             del self._infos[COMES_FROM]
@@ -1357,6 +1655,8 @@ class VersatileThermostatOptionsFlowHandler(
     VersatileThermostatBaseConfigFlow, OptionsFlow
 ):
     """Handle options flow for Versatile Thermostat integration."""
+
+    _ho_allow_control = True
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""

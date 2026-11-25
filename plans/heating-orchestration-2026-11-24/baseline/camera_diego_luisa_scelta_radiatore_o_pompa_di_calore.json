@@ -1,0 +1,724 @@
+{
+  "source_entity_id": "automation.camera_diego_luisa_scelta_radiatore_o_pompa_di_calore",
+  "ha_config_hash": "51fc60d208ead00f",
+  "validation": null,
+  "config": {
+    "id": "1794408702112",
+    "alias": "Camera Diego Luisa - Scelta radiatore o pompa di calore",
+    "description": "Prova Camera Diego Luisa. Eco, Comfort e Boost, richiesta stabile per 2 minuti, anche con altre stanze in richiesta, finestra chiusa, riserva di avvio 1500 W entro 2600 W, interruzione a 2700 W. La sospensione del radiatore termina dopo la conferma di spegnimento dello split. Espone il motivo di attesa e l’esito dell’ultimo avvio della PDC. Setpoint split pari a quello della stanza + 1 °C prima dell’arrotondamento, entro i limiti esistenti. In automatico: avvio con scarto almeno 0,4 °C; minimo 10 minuti da HEAT confermato persistente; stop ordinario a target +0,2 °C e limite anticipato a target +0,5 °C. Un ribasso del target già soddisfatto interrompe anche prima del minimo. Pausa di 10 minuti da OFF confermato. Protezioni e comandi manuali hanno precedenza. Override manuale condizionatore: precedenza a telecomando/app per 120 minuti; nessun comando automatico durante override. Nuovi avvii evitati se entro 10 minuti il programma abbassa il setpoint eliminando la richiesta o spegne la stanza; controllo ripetuto prima di accendere. Registro: esiti PdC confermati e motivo di arresto con temperatura, target e potenza nel logbook; nessuna modifica alle decisioni. Finestre: una PDC già attiva viene fermata solo dopo 120 secondi continuativi di apertura; nuovi avvii richiedono finestra chiusa. Dati finestra mancanti conservano la protezione.",
+    "triggers": [
+      {
+        "trigger": "state",
+        "id": "start",
+        "entity_id": "sensor.camera_diego_luisa_pdc_diagnostica",
+        "to": "ready|1100|120",
+        "for": {
+          "seconds": 120
+        }
+      },
+      {
+        "trigger": "numeric_state",
+        "entity_id": "sensor.energy_meter_power_a_casa",
+        "above": 2700
+      },
+      {
+        "trigger": "state",
+        "entity_id": "sensor.energy_meter_power_a_casa",
+        "to": [
+          "unknown",
+          "unavailable"
+        ]
+      },
+      {
+        "trigger": "state",
+        "entity_id": [
+          "input_boolean.camera_diego_luisa_pdc_automatica",
+          "sensor.temperatura_camera_diego_luisa",
+          "binary_sensor.finestre_interne_camera_diego_luisa",
+          "select.central_mode",
+          "climate.camera_diego_luisa_condizionatore_aria_stanza",
+          "climate.camera_diego_luisa_pompa_di_calore",
+          "input_text.camera_diego_luisa_pdc_ciclo"
+        ],
+        "to": null
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.trv_vtherm_camera_diego_luisa",
+        "attribute": "requested_state"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.trv_vtherm_camera_diego_luisa",
+        "attribute": "temperature"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.trv_vtherm_camera_diego_luisa",
+        "attribute": "preset_mode"
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      },
+      {
+        "trigger": "time_pattern",
+        "minutes": "/1"
+      }
+    ],
+    "conditions": [
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+        "state": "off"
+      },
+      {
+        "condition": "or",
+        "conditions": [
+          {
+            "condition": "state",
+            "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione",
+            "state": "on"
+          },
+          {
+            "condition": "trigger",
+            "id": "start"
+          }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "delay": {
+          "seconds": 2
+        }
+      },
+      {
+        "condition": "state",
+        "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+        "state": "off"
+      },
+      {
+        "choose": [
+          {
+            "alias": "Riporta la stanza al radiatore",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "or",
+                "conditions": [
+                  {
+                    "condition": "not",
+                    "conditions": [
+                      {
+                        "condition": "and",
+                        "conditions": [
+                          {
+                            "condition": "template",
+                            "value_template": "{{ (is_state('input_boolean.camera_diego_luisa_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'requested_state') or {}).get('hvac_mode')) == 'heat' and state_attr('climate.trv_vtherm_camera_diego_luisa', 'preset_mode') in ['none', 'eco', 'comfort', 'boost'] and states('select.central_mode') in ['Auto', 'Heat only']) and ((states('sensor.temperatura_camera_diego_luisa') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0)) <= 3600) and ((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) }}"
+                          },
+                          {
+                            "alias": "Finestra chiusa o aperta da meno di due minuti",
+                            "condition": "or",
+                            "conditions": [
+                              {
+                                "condition": "state",
+                                "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                "state": "off"
+                              },
+                              {
+                                "condition": "and",
+                                "conditions": [
+                                  {
+                                    "condition": "state",
+                                    "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                    "state": "on"
+                                  },
+                                  {
+                                    "condition": "not",
+                                    "conditions": [
+                                      {
+                                        "condition": "state",
+                                        "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                        "state": "on",
+                                        "for": {
+                                          "seconds": 120
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "condition": "numeric_state",
+                            "entity_id": "sensor.energy_meter_power_a_casa",
+                            "below": 2700
+                          },
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_pompa_di_calore",
+                            "state": "heat"
+                          },
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                            "state": "heat"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "condition": "template",
+                    "value_template": "{% set room_temp = states('sensor.temperatura_camera_diego_luisa') | float(none) %}\n{% set target = state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none) %}\n{% set now_ts = as_timestamp(now()) %}\n{% set sensor_age = now_ts - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0) %}\n{% set c = states('input_text.camera_diego_luisa_pdc_ciclo') | from_json({}) %}\n{% set c = c if c is mapping else {} %}\n{% set started = c.get('on') | float(none) %}\n{% set start_target = c.get('target') | float(none) %}\n{% set elapsed = now_ts - started if started is not none else none %}\n{% set minimum_done = c.get('m') == 'heat' and elapsed is not none and elapsed >= 600 %}\n{% set lowered_target = target is not none and start_target is not none and target < start_target and room_temp is not none and room_temp >= target %}\n{{ room_temp is not none and target is not none and 0 <= sensor_age <= 3600\n   and (room_temp >= target + 0.5 - 0.000001\n        or (minimum_done and room_temp >= target + 0.2 - 0.000001)\n        or lowered_target) }}"
+                  }
+                ]
+              }
+            ],
+            "sequence": [
+              {
+                "alias": "Motivo prima dei comandi di arresto",
+                "variables": {
+                  "journal_current": "{{ states('sensor.temperatura_camera_diego_luisa') | float(none) }}",
+                  "journal_target": "{{ state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none) }}",
+                  "journal_power": "{{ states('sensor.energy_meter_power_a_casa') | float(none) }}",
+                  "journal_reason": "{% set t=states('sensor.temperatura_camera_diego_luisa') | float(none) %}{% set target=state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none) %}{% set p=states('sensor.energy_meter_power_a_casa') | float(none) %}{% set cycle=states('input_text.camera_diego_luisa_pdc_ciclo') | from_json({}) %}{% set start_target=cycle.get('target') | float(none) if cycle is mapping else none %}{% if p is not none and p >= 2700 %}power_limit{% elif not is_state('binary_sensor.finestre_interne_camera_diego_luisa','off') %}window{% elif states('select.central_mode') not in ['Auto','Heat only'] %}central{% elif not is_state('input_boolean.camera_diego_luisa_pdc_automatica','on') %}automatic_disabled{% elif ((state_attr('climate.trv_vtherm_camera_diego_luisa','requested_state') or {}).get('hvac_mode')) != 'heat' %}program_off{% elif t is none or target is none or p is none or as_timestamp(now())-as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported,0)>45 or as_timestamp(now())-as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported,0)>3600 %}data_missing{% elif not is_state('climate.camera_diego_luisa_condizionatore_aria_stanza','heat') or not is_state('climate.camera_diego_luisa_pompa_di_calore','heat') %}split_mode{% elif start_target is not none and target < start_target and t >= target %}target_lowered{% elif t >= target+0.5-0.000001 %}temperature_limit{% elif t >= target+0.2-0.000001 %}target_reached{% else %}conditions_changed{% endif %}"
+                }
+              },
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                },
+                "data": {
+                  "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'returning_radiator|' ~ (previous[1:] | join('|')) }}"
+                },
+                "continue_on_error": true
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "off"
+              },
+              {
+                "action": "climate.set_hvac_mode",
+                "target": {
+                  "entity_id": "climate.camera_diego_luisa_pompa_di_calore"
+                },
+                "data": {
+                  "hvac_mode": "off"
+                },
+                "continue_on_error": true
+              },
+              {
+                "wait_template": "{{ is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off') }}",
+                "timeout": {
+                  "seconds": 20
+                },
+                "continue_on_timeout": true
+              },
+              {
+                "if": [
+                  {
+                    "condition": "not",
+                    "conditions": [
+                      {
+                        "condition": "and",
+                        "conditions": [
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                            "state": "off"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "then": [
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                    "state": "off"
+                  },
+                  {
+                    "action": "climate.set_hvac_mode",
+                    "target": {
+                      "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza"
+                    },
+                    "data": {
+                      "hvac_mode": "off"
+                    },
+                    "continue_on_error": true
+                  },
+                  {
+                    "wait_template": "{{ is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off') }}",
+                    "timeout": {
+                      "seconds": 15
+                    },
+                    "continue_on_timeout": true
+                  }
+                ]
+              },
+              {
+                "if": [
+                  {
+                    "condition": "not",
+                    "conditions": [
+                      {
+                        "condition": "state",
+                        "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                        "state": "off"
+                      }
+                    ]
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "input_text.set_value",
+                    "target": {
+                      "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                    },
+                    "data": {
+                      "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{% set now_ts = as_timestamp(now()) | int %}{{ 'return_unconfirmed|return_unconfirmed|' ~ (previous[2] if previous | length > 2 and previous[1] == 'return_unconfirmed' else now_ts) }}"
+                    },
+                    "continue_on_error": true
+                  }
+                ]
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "off"
+              },
+              {
+                "action": "input_boolean.turn_off",
+                "target": {
+                  "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione"
+                }
+              },
+              {
+                "alias": "Registra esito e motivo senza comandare dispositivi",
+                "action": "logbook.log",
+                "data": {
+                  "name": "Riscaldamento",
+                  "domain": "climate",
+                  "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                  "message": "OIKOS_HEATING_V1|{{ {'kind':'pdc_stop','room':'climate.trv_vtherm_camera_diego_luisa','reason':journal_reason,'source':this.entity_id,'source_name':state_attr(this.entity_id,'friendly_name'),'current':journal_current,'target':journal_target,'power':journal_power} | to_json }}"
+                },
+                "continue_on_error": true
+              },
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                },
+                "data": {
+                  "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'idle|' ~ previous[1] ~ '|' ~ previous[2] ~ '|restored' if previous | length > 2 and previous[1] else 'idle|' }}"
+                },
+                "continue_on_error": true
+              }
+            ]
+          },
+          {
+            "alias": "Aggiorna la temperatura dello split",
+            "conditions": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione",
+                "state": "on"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ state_attr('climate.camera_diego_luisa_pompa_di_calore', 'temperature') | float(none) != ([[(((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) + 1) | round(0, 'ceil') | int), 18] | max, 30] | min) }}"
+              }
+            ],
+            "sequence": [
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "off"
+              },
+              {
+                "action": "climate.set_temperature",
+                "target": {
+                  "entity_id": "climate.camera_diego_luisa_pompa_di_calore"
+                },
+                "data": {
+                  "temperature": "{{ [[(((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) + 1) | round(0, 'ceil') | int), 18] | max, 30] | min }}"
+                }
+              }
+            ]
+          },
+          {
+            "alias": "Passa dal radiatore alla pompa di calore",
+            "conditions": [
+              {
+                "condition": "trigger",
+                "id": "start"
+              },
+              {
+                "condition": "state",
+                "entity_id": "sensor.camera_diego_luisa_pdc_diagnostica",
+                "state": "ready|1100|120"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ ((is_state('input_boolean.camera_diego_luisa_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'requested_state') or {}).get('hvac_mode')) == 'heat' and state_attr('climate.trv_vtherm_camera_diego_luisa', 'preset_mode') in ['none', 'eco', 'comfort', 'boost'] and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestre_interne_camera_diego_luisa', 'off')) and ((states('sensor.temperatura_camera_diego_luisa') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) - (states('sensor.temperatura_camera_diego_luisa') | float(none))) >= 0.4 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600)) and (is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off') and is_state('climate.camera_carlo_condizionatore', 'off')) and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off') and is_state('climate.trv_vtherm_camera_diego_luisa', 'heat') and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off') and (as_timestamp(now()) - as_timestamp(states['climate.camera_diego_luisa_condizionatore_aria_stanza'].last_changed, 0)) >= 600 and (as_timestamp(now()) - as_timestamp(states['input_boolean.camera_diego_luisa_pdc_in_gestione'].last_changed, 0)) >= 600 and is_state('climate.camera_diego_luisa_pompa_di_calore', 'off') }}"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') == 'none' or (states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') | float(0)) > as_timestamp(now()) + 600 }}",
+                "alias": "Almeno 10 minuti utili prima di un ribasso programmato"
+              },
+              {
+                "condition": "template",
+                "alias": "Dieci minuti da OFF confermato, persistenti",
+                "value_template": "{% set c = states('input_text.camera_diego_luisa_pdc_ciclo') | from_json({}) %}{% set c = c if c is mapping else {} %}{% set stopped = c.get('off') | float(none) %}{{ c.get('m') == 'off' and stopped is not none and 0 <= stopped <= as_timestamp(now()) - 600 }}"
+              }
+            ],
+            "sequence": [
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                },
+                "data": {
+                  "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'waiting_trv|' ~ (previous[1:] | join('|')) }}"
+                },
+                "continue_on_error": true
+              },
+              {
+                "action": "input_boolean.turn_on",
+                "target": {
+                  "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione"
+                }
+              },
+              {
+                "wait_template": "{{ is_state('climate.trv_camera_diego_luisa', 'off') and is_state('climate.trv_vtherm_camera_diego_luisa', 'off') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'specific_states') or {}).get('inhibition') or {}).get('inhibited') == true }}",
+                "timeout": {
+                  "seconds": 25
+                },
+                "continue_on_timeout": true
+              },
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ (is_state('climate.trv_camera_diego_luisa', 'off') and is_state('climate.trv_vtherm_camera_diego_luisa', 'off') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'specific_states') or {}).get('inhibition') or {}).get('inhibited') == true) and ((is_state('input_boolean.camera_diego_luisa_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'requested_state') or {}).get('hvac_mode')) == 'heat' and state_attr('climate.trv_vtherm_camera_diego_luisa', 'preset_mode') in ['none', 'eco', 'comfort', 'boost'] and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestre_interne_camera_diego_luisa', 'off')) and ((states('sensor.temperatura_camera_diego_luisa') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) - (states('sensor.temperatura_camera_diego_luisa') | float(none))) >= 0.4 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600)) and (is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off') and is_state('climate.camera_carlo_condizionatore', 'off')) }}"
+                  },
+                  {
+                    "condition": "template",
+                    "value_template": "{{ states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') == 'none' or (states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') | float(0)) > as_timestamp(now()) + 600 }}",
+                    "alias": "Almeno 10 minuti utili prima di un ribasso programmato"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "input_text.set_value",
+                    "target": {
+                      "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                    },
+                    "data": {
+                      "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'waiting_target|' ~ (previous[1:] | join('|')) }}"
+                    },
+                    "continue_on_error": true
+                  },
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                    "state": "off"
+                  },
+                  {
+                    "action": "climate.set_temperature",
+                    "target": {
+                      "entity_id": "climate.camera_diego_luisa_pompa_di_calore"
+                    },
+                    "data": {
+                      "temperature": "{{ [[(((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) + 1) | round(0, 'ceil') | int), 18] | max, 30] | min }}"
+                    },
+                    "continue_on_error": true
+                  },
+                  {
+                    "if": [
+                      {
+                        "condition": "template",
+                        "value_template": "{{ ((is_state('input_boolean.camera_diego_luisa_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'requested_state') or {}).get('hvac_mode')) == 'heat' and state_attr('climate.trv_vtherm_camera_diego_luisa', 'preset_mode') in ['none', 'eco', 'comfort', 'boost'] and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestre_interne_camera_diego_luisa', 'off')) and ((states('sensor.temperatura_camera_diego_luisa') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) - (states('sensor.temperatura_camera_diego_luisa') | float(none))) >= 0.4 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600)) and (is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off') and is_state('climate.camera_carlo_condizionatore', 'off')) and (state_attr('climate.camera_diego_luisa_pompa_di_calore', 'temperature') | float(none)) == ([[(((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) + 1) | round(0, 'ceil') | int), 18] | max, 30] | min) }}"
+                      },
+                      {
+                        "condition": "template",
+                        "value_template": "{{ states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') == 'none' or (states('sensor.camera_diego_luisa_pdc_prossimo_stop_programma') | float(0)) > as_timestamp(now()) + 600 }}",
+                        "alias": "Almeno 10 minuti utili prima di un ribasso programmato"
+                      }
+                    ],
+                    "then": [
+                      {
+                        "action": "input_text.set_value",
+                        "target": {
+                          "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                        },
+                        "data": {
+                          "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'waiting_split|' ~ (previous[1:] | join('|')) }}"
+                        },
+                        "continue_on_error": true
+                      },
+                      {
+                        "condition": "state",
+                        "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                        "state": "off"
+                      },
+                      {
+                        "action": "climate.set_hvac_mode",
+                        "target": {
+                          "entity_id": "climate.camera_diego_luisa_pompa_di_calore"
+                        },
+                        "data": {
+                          "hvac_mode": "heat"
+                        },
+                        "continue_on_error": true
+                      },
+                      {
+                        "wait_template": "{{ is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'heat') }}",
+                        "timeout": {
+                          "seconds": 20
+                        },
+                        "continue_on_timeout": true
+                      },
+                      {
+                        "if": [
+                          {
+                            "condition": "template",
+                            "value_template": "{{ (is_state('input_boolean.camera_diego_luisa_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'requested_state') or {}).get('hvac_mode')) == 'heat' and state_attr('climate.trv_vtherm_camera_diego_luisa', 'preset_mode') in ['none', 'eco', 'comfort', 'boost'] and states('select.central_mode') in ['Auto', 'Heat only']) and ((states('sensor.temperatura_camera_diego_luisa') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_diego_luisa'].last_reported, 0)) <= 3600) and ((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) }}"
+                          },
+                          {
+                            "alias": "Finestra chiusa o aperta da meno di due minuti",
+                            "condition": "or",
+                            "conditions": [
+                              {
+                                "condition": "state",
+                                "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                "state": "off"
+                              },
+                              {
+                                "condition": "and",
+                                "conditions": [
+                                  {
+                                    "condition": "state",
+                                    "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                    "state": "on"
+                                  },
+                                  {
+                                    "condition": "not",
+                                    "conditions": [
+                                      {
+                                        "condition": "state",
+                                        "entity_id": "binary_sensor.finestre_interne_camera_diego_luisa",
+                                        "state": "on",
+                                        "for": {
+                                          "seconds": 120
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "condition": "numeric_state",
+                            "entity_id": "sensor.energy_meter_power_a_casa",
+                            "below": 2700
+                          },
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_pompa_di_calore",
+                            "state": "heat"
+                          },
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                            "state": "heat"
+                          }
+                        ],
+                        "then": [
+                          {
+                            "action": "input_text.set_value",
+                            "target": {
+                              "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                            },
+                            "data": {
+                              "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'idle|' ~ (previous[1:] | join('|')) }}"
+                            },
+                            "continue_on_error": true
+                          },
+                          {
+                            "alias": "Registra esito e motivo senza comandare dispositivi",
+                            "action": "logbook.log",
+                            "data": {
+                              "name": "Riscaldamento",
+                              "domain": "climate",
+                              "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                              "message": "OIKOS_HEATING_V1|{{ {'kind':'pdc_start','room':'climate.trv_vtherm_camera_diego_luisa','reason':'heat_demand','source':this.entity_id,'source_name':state_attr(this.entity_id,'friendly_name'),'current':states('sensor.temperatura_camera_diego_luisa') | float(none),'target':state_attr('climate.trv_vtherm_camera_diego_luisa','temperature') | float(none),'power':states('sensor.energy_meter_power_a_casa') | float(none)} | to_json }}"
+                            },
+                            "continue_on_error": true
+                          },
+                          {
+                            "stop": "Pompa di calore avviata e verificata"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                },
+                "data": {
+                  "value": "{% set prior = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{% set stage = prior[0] %}{% if stage == 'waiting_trv' and not ( is_state('climate.trv_camera_diego_luisa', 'off') and is_state('climate.trv_vtherm_camera_diego_luisa', 'off') and ((state_attr('climate.trv_vtherm_camera_diego_luisa', 'specific_states') or {}).get('inhibition') or {}).get('inhibited') == true ) %}{% set failure = 'trv_unconfirmed' %}{% elif stage == 'waiting_target' and not ((state_attr('climate.camera_diego_luisa_pompa_di_calore', 'temperature') | float(none)) == ([[(((state_attr('climate.trv_vtherm_camera_diego_luisa', 'temperature') | float(none)) + 1) | round(0, 'ceil') | int), 18] | max, 30] | min)) %}{% set failure = 'target_unconfirmed' %}{% elif stage == 'waiting_split' and not is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'heat') %}{% set failure = 'split_unconfirmed' %}{% else %}{% set failure = 'conditions_changed' %}{% endif %}{{ 'returning_radiator|' ~ failure ~ '|' ~ (as_timestamp(now()) | int) }}"
+                },
+                "continue_on_error": true
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "off"
+              },
+              {
+                "action": "climate.set_hvac_mode",
+                "target": {
+                  "entity_id": "climate.camera_diego_luisa_pompa_di_calore"
+                },
+                "data": {
+                  "hvac_mode": "off"
+                },
+                "continue_on_error": true
+              },
+              {
+                "wait_template": "{{ is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off') }}",
+                "timeout": {
+                  "seconds": 20
+                },
+                "continue_on_timeout": true
+              },
+              {
+                "if": [
+                  {
+                    "condition": "not",
+                    "conditions": [
+                      {
+                        "condition": "and",
+                        "conditions": [
+                          {
+                            "condition": "state",
+                            "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                            "state": "off"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "then": [
+                  {
+                    "condition": "state",
+                    "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                    "state": "off"
+                  },
+                  {
+                    "action": "climate.set_hvac_mode",
+                    "target": {
+                      "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza"
+                    },
+                    "data": {
+                      "hvac_mode": "off"
+                    },
+                    "continue_on_error": true
+                  },
+                  {
+                    "wait_template": "{{ is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off') }}",
+                    "timeout": {
+                      "seconds": 15
+                    },
+                    "continue_on_timeout": true
+                  }
+                ]
+              },
+              {
+                "if": [
+                  {
+                    "condition": "not",
+                    "conditions": [
+                      {
+                        "condition": "state",
+                        "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                        "state": "off"
+                      }
+                    ]
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "input_text.set_value",
+                    "target": {
+                      "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                    },
+                    "data": {
+                      "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{% set now_ts = as_timestamp(now()) | int %}{{ 'return_unconfirmed|return_unconfirmed|' ~ (previous[2] if previous | length > 2 and previous[1] == 'return_unconfirmed' else now_ts) }}"
+                    },
+                    "continue_on_error": true
+                  }
+                ]
+              },
+              {
+                "condition": "state",
+                "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "off"
+              },
+              {
+                "action": "input_boolean.turn_off",
+                "target": {
+                  "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione"
+                }
+              },
+              {
+                "action": "input_text.set_value",
+                "target": {
+                  "entity_id": "input_text.camera_diego_luisa_pdc_transizione"
+                },
+                "data": {
+                  "value": "{% set previous = states('input_text.camera_diego_luisa_pdc_transizione').split('|') %}{{ 'idle|' ~ previous[1] ~ '|' ~ previous[2] ~ '|restored' if previous | length > 2 and previous[1] else 'idle|' }}"
+                },
+                "continue_on_error": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 20
+    },
+    "category": "01M7Q4Y5F9N1EAA23JW6VC9RV9"
+  }
+}

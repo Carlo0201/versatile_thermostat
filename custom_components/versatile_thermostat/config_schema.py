@@ -33,6 +33,18 @@ from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAI
 
 
 from .const import *  # pylint: disable=wildcard-import, unused-wildcard-import
+from .heating_boiler_collector import (
+    ACTIVE_COUNT_DOMAINS,
+    BINARY_INPUT_DOMAINS,
+    CENTRAL_MODE_DOMAINS,
+    EXTERNAL_OWNER_DOMAINS,
+    LEGACY_CYCLE_DOMAINS,
+    MASTER_DOMAINS,
+    ROOM_DOMAINS,
+    SESSION_DOMAINS,
+    SPLIT_DOMAINS,
+)
+from . import heating_pdc_collector as _pdc
 
 
 def get_prop_function_options() -> list[str]:
@@ -238,6 +250,99 @@ STEP_CENTRAL_BOILER_SCHEMA = vol.Schema(
     }
 )
 
+def _ho_entity_selector(domains, multiple: bool = False) -> selector.EntitySelector:
+    """Entity selector restricted to the domains accepted by the orchestration collector."""
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=list(domains), multiple=multiple))
+
+
+def build_central_heating_orchestration_schema(allow_control: bool) -> vol.Schema:
+    """Central entities of the boiler orchestration.
+
+    ``control`` is offered only by the options flow of an existing central
+    configuration (``allow_control``): it needs the confirmation step.
+    """
+    modes = HO_OPTIONS_MODES if allow_control else HO_SELECTABLE_MODES
+    return vol.Schema(
+        {
+            vol.Required(CONF_HO_MODE, default=HO_MODE_DISABLED): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(modes), translation_key="heating_orchestration_mode", mode=selector.SelectSelectorMode.LIST)
+            ),
+            **_HO_CENTRAL_FIELDS,
+            vol.Optional(CONF_HO_EXTERNAL_OWNERS): _ho_entity_selector(EXTERNAL_OWNER_DOMAINS, multiple=True),
+        }
+    )
+
+
+# Boiler orchestration: the central entity fields shared by the creation and options flows.
+_HO_CENTRAL_FIELDS = {
+    vol.Optional(CONF_HO_MASTER): _ho_entity_selector(MASTER_DOMAINS),
+    vol.Optional(CONF_HO_CENTRAL_MODE): _ho_entity_selector(CENTRAL_MODE_DOMAINS),
+    vol.Optional(CONF_HO_ACTIVE_COUNT): _ho_entity_selector(ACTIVE_COUNT_DOMAINS),
+    vol.Optional(CONF_HO_MANUAL): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_PILOT_FILTER): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_PILOT_READY): _ho_entity_selector(BINARY_INPUT_DOMAINS),
+    vol.Optional(CONF_HO_CONSENTS): _ho_entity_selector(BINARY_INPUT_DOMAINS, multiple=True),
+    vol.Optional(CONF_HO_LEGACY_CYCLE): _ho_entity_selector(LEGACY_CYCLE_DOMAINS),
+}
+
+# Creation flow of a new central configuration: observe at most.
+STEP_CENTRAL_HEATING_ORCHESTRATION_SCHEMA = build_central_heating_orchestration_schema(False)
+# Options flow of an existing central configuration: ``control`` selectable (with confirmation).
+STEP_CENTRAL_HEATING_ORCHESTRATION_OPTIONS_SCHEMA = build_central_heating_orchestration_schema(True)
+
+# Boiler orchestration (M2-B): explicit confirmation of the ``control`` mode.
+STEP_HEATING_ORCHESTRATION_CONTROL_CONFIRM_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_CONTROL_CONFIRM, default=False): selector.BooleanSelector(),
+    }
+)
+
+# Boiler orchestration (M2-A): one room of the list (flat form, stored as a nested element).
+STEP_HEATING_ORCHESTRATION_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_ROOM_KEY): selector.TextSelector(),
+        vol.Required(CONF_HO_ROOM_CLIMATE): _ho_entity_selector(ROOM_DOMAINS),
+        vol.Optional(CONF_HO_ROOM_PILOT_FILTER, default=False): selector.BooleanSelector(),
+        vol.Optional(CONF_HO_PDC_SPLIT): _ho_entity_selector(SPLIT_DOMAINS),
+        vol.Optional(CONF_HO_PDC_SESSION): _ho_entity_selector(SESSION_DOMAINS),
+    }
+)
+
+# PDC (heat pump) runtime, observe only in this release: ``control`` is not offered.
+# Global step: mode and the two entities shared by the PDC rooms.
+STEP_HEATING_PDC_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HO_PDC_MODE, default="disabled"): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(HO_PDC_SELECTABLE_MODES), translation_key="heating_pdc_mode", mode=selector.SelectSelectorMode.LIST)
+        ),
+        vol.Optional(_pdc.KEY_POWER): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
+        vol.Optional(_pdc.KEY_CENTRAL_MODE): _ho_entity_selector(_pdc.CENTRAL_MODE_DOMAINS),
+    }
+)
+
+# One PDC room (flat form, stored as a nested element of ``pdc_runtime.rooms``). The two rooms of the
+# installation differ only by ``setpoint_min_c`` and ``manual_preset_bypass``.
+STEP_HEATING_PDC_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required(_pdc.KEY_ROOM_KEY): selector.TextSelector(),
+        vol.Required(_pdc.KEY_RADIATOR): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_VALVE): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_TEMPERATURE): _ho_entity_selector(_pdc.SENSOR_DOMAINS),
+        vol.Required(_pdc.KEY_WINDOW): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_SPLIT): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_PDC): _ho_entity_selector(_pdc.CLIMATE_DOMAINS),
+        vol.Required(_pdc.KEY_AUTOMATIC): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_SCHEDULE_STOP): _ho_entity_selector(_pdc.SCHEDULE_DOMAINS),
+        vol.Required(_pdc.KEY_MANAGED): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Required(_pdc.KEY_OVERRIDE): _ho_entity_selector(_pdc.BINARY_DOMAINS),
+        vol.Optional(_pdc.KEY_CYCLE): _ho_entity_selector(_pdc.TEXT_DOMAINS),
+        vol.Optional(_pdc.KEY_OVERRIDE_TIMER): _ho_entity_selector(_pdc.TIMER_DOMAINS),
+        vol.Optional(_pdc.KEY_SCHEDULE_SWITCHES): _ho_entity_selector(("switch",), multiple=True),
+        vol.Optional(_pdc.KEY_SETPOINT_MIN, default=16): selector.NumberSelector(selector.NumberSelectorConfig(min=5, max=30, step=1, mode=selector.NumberSelectorMode.BOX)),
+        vol.Optional(_pdc.KEY_MANUAL_BYPASS, default=False): selector.BooleanSelector(),
+    }
+)
+
 STEP_THERMOSTAT_SWITCH = build_step_thermostat_switch_schema()  # pylint: disable=invalid-name
 
 STEP_THERMOSTAT_CLIMATE = vol.Schema(  # pylint: disable=invalid-name
@@ -255,6 +360,7 @@ STEP_THERMOSTAT_CLIMATE = vol.Schema(  # pylint: disable=invalid-name
             )
         ),
         vol.Optional(CONF_AUTO_REGULATION_DTEMP, default=0.5): vol.Coerce(float),
+        vol.Optional(CONF_AVATTO_ROOM_CONTROL, default=False): cv.boolean,
         vol.Optional(CONF_AUTO_REGULATION_PERIOD_MIN, default=5): cv.positive_int,
         vol.Optional(CONF_AUTO_FAN_MODE, default=CONF_AUTO_FAN_HIGH): selector.SelectSelector(
             selector.SelectSelectorConfig(

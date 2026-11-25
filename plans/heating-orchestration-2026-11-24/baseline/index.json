@@ -1,0 +1,145 @@
+{
+  "prepared_at_utc": "2026-11-24T09:00:30.142Z",
+  "timezone": "Europe/Rome",
+  "capture_is_atomic": false,
+  "note": "Read-only API snapshots captured sequentially/in batches on 2026-11-24; re-read before any deployment. No live changes performed.",
+  "repository": {
+    "branch": "codex/avatto-trv-pilot",
+    "head": "6a819dcc1437fb33ddf8bf0dc2e3aa09e0c80666",
+    "component_version": "10.6.3"
+  },
+  "files": [
+    {
+      "entity_id": "automation.caldaia_controllo_stabile_delle_richieste",
+      "file": "baseline/caldaia_controllo_stabile_delle_richieste.json",
+      "config_hash": "7799f0f9d831df35",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "4ee0fedd33837cd227f0580c84468a452d16c56de84962bada6968363f4c298a"
+    },
+    {
+      "entity_id": "automation.camera_carlo_scelta_radiatore_o_pompa_di_calore",
+      "file": "baseline/camera_carlo_scelta_radiatore_o_pompa_di_calore.json",
+      "config_hash": "da603f22ae05f2b2",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "d7eb6d4e2ffd4fe490e69e5e9f5a900ab440352c51f8f57452ee3792cfa23eb4"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_scelta_radiatore_o_pompa_di_calore",
+      "file": "baseline/camera_diego_luisa_scelta_radiatore_o_pompa_di_calore.json",
+      "config_hash": "51fc60d208ead00f",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "a33aa1211dfcd21fda7e057cce3189520e86a8d56f93b30c81b929d62edc3517"
+    },
+    {
+      "entity_id": "automation.camera_carlo_fine_override_condizionatore",
+      "file": "baseline/camera_carlo_fine_override_condizionatore.json",
+      "config_hash": "9d410804009fc0ac",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "aab282beab1f77d99b67194ae52620e2ded2b6c0094bd27457efb797be386566"
+    },
+    {
+      "entity_id": "automation.camera_carlo_override_manuale_condizionatore",
+      "file": "baseline/camera_carlo_override_manuale_condizionatore.json",
+      "config_hash": "660d958cc60c7ed2",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "b79e0e12ed85157487cefebb7e17d4ed305ff9c2379841430d7301f14247f80b"
+    },
+    {
+      "entity_id": "automation.camera_carlo_protezioni_override_condizionatore",
+      "file": "baseline/camera_carlo_protezioni_override_condizionatore.json",
+      "config_hash": "77067e449cca9520",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "6aa0623c6006c9fbdb65b3805e6ab812599a5f2adfb94368e9abf2b5b79fad39"
+    },
+    {
+      "entity_id": "automation.camera_carlo_registro_comandi_condizionatore",
+      "file": "baseline/camera_carlo_registro_comandi_condizionatore.json",
+      "config_hash": "0410c360d37e0117",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "a92d893701cb5bbf7ae38d471310ebb1d57d749a70918c11a977829d029fcd58"
+    },
+    {
+      "entity_id": "automation.camera_carlo_profilo_comfort_split_automatico",
+      "file": "baseline/camera_carlo_profilo_comfort_split_automatico.json",
+      "config_hash": "24db2881ddfde1a5",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "a748e0f4f4e21f6e1d1320b18109a818d4cdca0e01aa05b3fe25ca4e71201db5"
+    },
+    {
+      "entity_id": "automation.camera_carlo_registro_ciclo_persistente_pdc",
+      "file": "baseline/camera_carlo_registro_ciclo_persistente_pdc.json",
+      "config_hash": "b7a57f5aa8d84d4c",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "7121d069a6f8b65bca0f6d89b29d498c0ebbc703f515e61dfb8cfcf4119d328e"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_fine_override_condizionatore",
+      "file": "baseline/camera_diego_luisa_fine_override_condizionatore.json",
+      "config_hash": "608b26d0878b8a84",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "ff6a506ba1f6b999e7b7c37a36f87c53a5661e4bf6bc8f46db2e121af150d216"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_override_manuale_condizionatore",
+      "file": "baseline/camera_diego_luisa_override_manuale_condizionatore.json",
+      "config_hash": "a551457f157c81a2",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "1de7dd75ab95a5123e9c9b686538fb7fc58772426ae37118a01db2795fdec8c1"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_protezioni_override_condizionatore",
+      "file": "baseline/camera_diego_luisa_protezioni_override_condizionatore.json",
+      "config_hash": "fc301c998d0aea52",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "24d02d8d75cfb8f4e338116423360dc9c5b63dcd3f1512076f6bd8b9f92eb627"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_registro_comandi_condizionatore",
+      "file": "baseline/camera_diego_luisa_registro_comandi_condizionatore.json",
+      "config_hash": "86fc88d87bf81280",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "d458f947d8c9e14bdcac2bc026a5dc7cb0a7356e407297f19d2066ea304866f1"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_profilo_comfort_split_automatico",
+      "file": "baseline/camera_diego_luisa_profilo_comfort_split_automatico.json",
+      "config_hash": "a1746cc40c3d73f0",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "be789a8fb1c879340cc6a844c2ca03d1e93d742289aecc13315612bee6cd4874"
+    },
+    {
+      "entity_id": "automation.camera_diego_luisa_registro_ciclo_persistente_pdc",
+      "file": "baseline/camera_diego_luisa_registro_ciclo_persistente_pdc.json",
+      "config_hash": "35d9ca818429c517",
+      "validation": null,
+      "source": "Home Assistant automation config API",
+      "sha256": "9904508d3033cab1d711a65377698bd0c3b71417191938e2a910b5a92a9bf3fa"
+    },
+    {
+      "file": "baseline/boiler-decision-cases.json",
+      "source": "output/Caldaia_stabilita_2026-11-24/test-decisione.json",
+      "cases": 27,
+      "sha256": "b2d758bdefd0139cc5aea94dc12500b45a2238838da16248824a6eef4a218f7e"
+    },
+    {
+      "file": "baseline/boiler-observation-cases.json",
+      "source": "output/Caldaia_stabilita_2026-11-24/test-osservazione.json",
+      "cases": 17,
+      "sha256": "fe3f09524669d62ed6ea2acfcd7c6aed60169e046fe2abf9a9897949fd183c07"
+    }
+  ]
+}

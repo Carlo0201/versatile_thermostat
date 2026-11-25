@@ -1,0 +1,1016 @@
+{
+ "policy_sha256": "67f866c2c09a3eb9896aa131f853191e8c16993f86c3a4eb24e95296f0bc975e",
+ "baseline_files_hash_verified": 17,
+ "diagnostic_source": {
+  "file": "pdc_diagnostica_2026-11-23.json",
+  "sha256": "20fbc9838d6739b5a2205e1b0baca835f264f5f9a583fbf42a8018aa9f731af3",
+  "origin": {
+   "file": "output/PDC_cicli_override_2026-11-23/config-applicata.json (progetto padre)",
+   "sha256": "2496dbed13aee319d2514e608150a2b73094dea8bcca44e33c3f0d2a30c5a8d0",
+   "path": "verification.diagnostics[i].options.state",
+   "note": "Lettura dopo scrittura del 23/11/2026; non presente in baseline/index.json. Fonte secondaria: da riconfrontare con HA live. Le modifiche successive del 23/11 (PDC_ritardo_finestre, Registro_riscaldamento) non toccano questi template."
+  }
+ },
+ "camera_carlo": {
+  "boundary_cases": 116,
+  "boundary_stats": {
+   "branches": {
+    "start": 24,
+    "none": 62,
+    "stop": 15,
+    "set_setpoint": 15
+   },
+   "journal": 115,
+   "setpoint": 114,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 45,
+   "confirm_running": 33,
+   "protection_stop": 4,
+   "register_writes": 15
+  },
+  "boundary_outcomes": {
+   "start_nominal": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.4": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.399999": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.3999989": {
+    "branch": "none",
+    "diag": "small_gap|1100|120"
+   },
+   "gap_0.399": {
+    "branch": "none",
+    "diag": "small_gap|1100|120"
+   },
+   "gap_0.41": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100.5": {
+    "branch": "none",
+    "diag": "power_high|1100|120"
+   },
+   "start_power_1099.99": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_-0.1": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_unknown": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_unavailable": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_age_45.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_age_45.25": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_age_-5.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_temp_age_3600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_temp_age_3600.25": {
+    "branch": "none",
+    "diag": "temperature_missing|1100|120"
+   },
+   "start_temp_age_-60.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "schedule_600.0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_600.25": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "schedule_599.75": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_-10.0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_invalid": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "schedule_unknown": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "schedule_0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "cooldown_599.0": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "cooldown_601.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "cooldown_future": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_negative": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_mode_heat": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cycle_unknown": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "cycle_list": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "cycle_string_numbers": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "raw_split_599.75": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "raw_managed_599.75": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "raw_split_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "raw_managed_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "override_on": {
+    "branch": "none",
+    "diag": "manual_override|1100|120"
+   },
+   "override_unknown": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "other_managed": {
+    "branch": "none",
+    "diag": "other_pdc|1100|120"
+   },
+   "other_split_heat": {
+    "branch": "none",
+    "diag": "other_pdc|1100|120"
+   },
+   "other_split_unavailable": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "window_open_start": {
+    "branch": "none",
+    "diag": "window,data_missing|1100|120"
+   },
+   "window_unknown_start": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "preset_away": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "preset_away_timer_active": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "preset_away_idle_switches_off": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "preset_none_attr": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "central_cool": {
+    "branch": "none",
+    "diag": "central_mode|1100|120"
+   },
+   "requested_none": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "edge_consumed": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "run_nominal": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_2699.99": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_2700": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_2700.01": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_-50": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_unknown": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_stale": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_future": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_window_119.0": {
+    "branch": "none",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_120.0": {
+    "branch": "none",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_120.25": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_121.0": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_unknown": {
+    "branch": "stop",
+    "diag": "data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_temp_future": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_temp_stale": {
+    "branch": "stop",
+    "diag": "managed,data_missing,temperature_missing,split_busy,cooldown|1100|120"
+   },
+   "run_min_on_599.0": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_min_on_600.0": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_ordinary_below": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_early_0.5": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_early_0.499": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_target_lowered": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_target_raised": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_setpoint_mismatch": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_split_off": {
+    "branch": "stop",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_override_unknown": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "low_target_setpoint_min": {
+    "branch": "none",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "high_target_setpoint_max": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_15.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_16.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_16.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.99": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_18.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_19.01": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_19.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_20.3": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_28.9": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_29.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_29.01": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_30.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "gap_exact_threshold_0.5": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_exact_threshold_0.75": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stop_power_and_window_open": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,power_high,split_busy,cooldown|1100|120"
+   },
+   "stop_power_and_window_unknown": {
+    "branch": "stop",
+    "diag": "data_missing,managed,power_high,split_busy,cooldown|1100|120"
+   },
+   "register_heat_on_missing": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "register_off_off_missing": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "register_fraction_truncated": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy|1100|120"
+   },
+   "register_heat_confirmed_target_missing": {
+    "branch": "stop",
+    "diag": "managed,data_missing,temperature_missing,split_busy|1100|120"
+   },
+   "prot_power_2700": {
+    "branch": "none",
+    "diag": "manual_override,power_high,split_busy|1100|120"
+   },
+   "prot_power_2699": {
+    "branch": "none",
+    "diag": "manual_override,power_high,split_busy|1100|120"
+   },
+   "prot_window_120": {
+    "branch": "none",
+    "diag": "manual_override,window,data_missing,split_busy|1100|120"
+   },
+   "prot_window_121": {
+    "branch": "none",
+    "diag": "manual_override,window,data_missing,split_busy|1100|120"
+   },
+   "prot_window_unknown_29": {
+    "branch": "none",
+    "diag": "manual_override,data_missing,split_busy|1100|120"
+   },
+   "prot_window_unknown_30": {
+    "branch": "none",
+    "diag": "manual_override,data_missing,split_busy|1100|120"
+   },
+   "prot_central_stopped": {
+    "branch": "none",
+    "diag": "manual_override,central_mode,split_busy|1100|120"
+   },
+   "stage_trv_ok": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "stage_trv_fail": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "stage_target_fail": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stage_target_missing": {
+    "branch": "none",
+    "diag": "temperature_missing|1100|120"
+   },
+   "stage_split_fail": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stage_split_ok": {
+    "branch": "none",
+    "diag": "split_busy|1100|120"
+   }
+  },
+  "random_cases": 6000,
+  "seed": 20261124,
+  "random_stats": {
+   "branches": {
+    "stop": 1278,
+    "none": 4123,
+    "start": 487,
+    "set_setpoint": 112
+   },
+   "journal": 5870,
+   "setpoint": 5876,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 1895,
+   "confirm_running": 1135,
+   "protection_stop": 14,
+   "register_writes": 1798
+  }
+ },
+ "camera_diego_luisa": {
+  "boundary_cases": 116,
+  "boundary_stats": {
+   "branches": {
+    "start": 22,
+    "none": 63,
+    "stop": 15,
+    "set_setpoint": 16
+   },
+   "journal": 115,
+   "setpoint": 114,
+   "recheck_radiator": 1,
+   "recheck_setpoint": 41,
+   "confirm_running": 33,
+   "protection_stop": 4,
+   "register_writes": 15
+  },
+  "boundary_outcomes": {
+   "start_nominal": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.4": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.399999": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_0.3999989": {
+    "branch": "none",
+    "diag": "small_gap|1100|120"
+   },
+   "gap_0.399": {
+    "branch": "none",
+    "diag": "small_gap|1100|120"
+   },
+   "gap_0.41": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_1100.5": {
+    "branch": "none",
+    "diag": "power_high|1100|120"
+   },
+   "start_power_1099.99": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_-0.1": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_unknown": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_unavailable": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_age_45.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_power_age_45.25": {
+    "branch": "none",
+    "diag": "power_missing|1100|120"
+   },
+   "start_power_age_-5.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_temp_age_3600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "start_temp_age_3600.25": {
+    "branch": "none",
+    "diag": "temperature_missing|1100|120"
+   },
+   "start_temp_age_-60.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "schedule_600.0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_600.25": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "schedule_599.75": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_-10.0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "schedule_invalid": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "schedule_unknown": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "schedule_0": {
+    "branch": "none",
+    "diag": "schedule_change|1100|120"
+   },
+   "cooldown_599.0": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "cooldown_601.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "cooldown_future": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_negative": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cooldown_mode_heat": {
+    "branch": "none",
+    "diag": "cooldown|1100|120"
+   },
+   "cycle_unknown": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "cycle_list": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "cycle_string_numbers": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "raw_split_599.75": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "raw_managed_599.75": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "raw_split_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "raw_managed_600.0": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "override_on": {
+    "branch": "none",
+    "diag": "manual_override|1100|120"
+   },
+   "override_unknown": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "other_managed": {
+    "branch": "none",
+    "diag": "other_pdc|1100|120"
+   },
+   "other_split_heat": {
+    "branch": "none",
+    "diag": "other_pdc|1100|120"
+   },
+   "other_split_unavailable": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "window_open_start": {
+    "branch": "none",
+    "diag": "window,data_missing|1100|120"
+   },
+   "window_unknown_start": {
+    "branch": "none",
+    "diag": "data_missing|1100|120"
+   },
+   "preset_away": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "preset_away_timer_active": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "preset_away_idle_switches_off": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "preset_none_attr": {
+    "branch": "none",
+    "diag": "preset|1100|120"
+   },
+   "central_cool": {
+    "branch": "none",
+    "diag": "central_mode|1100|120"
+   },
+   "requested_none": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "edge_consumed": {
+    "branch": "none",
+    "diag": "ready|1100|120"
+   },
+   "run_nominal": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_2699.99": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_2700": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_2700.01": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "run_power_-50": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_unknown": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_stale": {
+    "branch": "stop",
+    "diag": "managed,data_missing,power_missing,split_busy,cooldown|1100|120"
+   },
+   "run_power_future": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_window_119.0": {
+    "branch": "none",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_120.0": {
+    "branch": "none",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_120.25": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_121.0": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_window_unknown": {
+    "branch": "stop",
+    "diag": "data_missing,managed,split_busy,cooldown|1100|120"
+   },
+   "run_temp_future": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_temp_stale": {
+    "branch": "stop",
+    "diag": "managed,data_missing,temperature_missing,split_busy,cooldown|1100|120"
+   },
+   "run_min_on_599.0": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_min_on_600.0": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_ordinary_below": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_early_0.5": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_early_0.499": {
+    "branch": "none",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_target_lowered": {
+    "branch": "stop",
+    "diag": "managed,data_missing,at_target,small_gap,split_busy,cooldown|1100|120"
+   },
+   "run_target_raised": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_setpoint_mismatch": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_split_off": {
+    "branch": "stop",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "run_override_unknown": {
+    "branch": "none",
+    "diag": "managed,data_missing,power_high,split_busy,cooldown|1100|120"
+   },
+   "low_target_setpoint_min": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "high_target_setpoint_max": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_15.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_16.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_16.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_17.99": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_18.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_19.01": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_19.5": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_20.3": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_28.9": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_29.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_29.01": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "setpoint_target_30.0": {
+    "branch": "set_setpoint",
+    "diag": "managed,data_missing,small_gap,split_busy,cooldown|1100|120"
+   },
+   "gap_exact_threshold_0.5": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "gap_exact_threshold_0.75": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stop_power_and_window_open": {
+    "branch": "stop",
+    "diag": "window,data_missing,managed,power_high,split_busy,cooldown|1100|120"
+   },
+   "stop_power_and_window_unknown": {
+    "branch": "stop",
+    "diag": "data_missing,managed,power_high,split_busy,cooldown|1100|120"
+   },
+   "register_heat_on_missing": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy,cooldown|1100|120"
+   },
+   "register_off_off_missing": {
+    "branch": "none",
+    "diag": "data_missing,cooldown|1100|120"
+   },
+   "register_fraction_truncated": {
+    "branch": "none",
+    "diag": "managed,data_missing,split_busy|1100|120"
+   },
+   "register_heat_confirmed_target_missing": {
+    "branch": "stop",
+    "diag": "managed,data_missing,temperature_missing,split_busy|1100|120"
+   },
+   "prot_power_2700": {
+    "branch": "none",
+    "diag": "manual_override,power_high,split_busy|1100|120"
+   },
+   "prot_power_2699": {
+    "branch": "none",
+    "diag": "manual_override,power_high,split_busy|1100|120"
+   },
+   "prot_window_120": {
+    "branch": "none",
+    "diag": "manual_override,window,data_missing,split_busy|1100|120"
+   },
+   "prot_window_121": {
+    "branch": "none",
+    "diag": "manual_override,window,data_missing,split_busy|1100|120"
+   },
+   "prot_window_unknown_29": {
+    "branch": "none",
+    "diag": "manual_override,data_missing,split_busy|1100|120"
+   },
+   "prot_window_unknown_30": {
+    "branch": "none",
+    "diag": "manual_override,data_missing,split_busy|1100|120"
+   },
+   "prot_central_stopped": {
+    "branch": "none",
+    "diag": "manual_override,central_mode,split_busy|1100|120"
+   },
+   "stage_trv_ok": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "stage_trv_fail": {
+    "branch": "none",
+    "diag": "room_off|1100|120"
+   },
+   "stage_target_fail": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stage_target_missing": {
+    "branch": "none",
+    "diag": "temperature_missing|1100|120"
+   },
+   "stage_split_fail": {
+    "branch": "start",
+    "diag": "ready|1100|120"
+   },
+   "stage_split_ok": {
+    "branch": "none",
+    "diag": "split_busy|1100|120"
+   }
+  },
+  "random_cases": 6000,
+  "seed": 20261125,
+  "random_stats": {
+   "branches": {
+    "none": 4181,
+    "stop": 1238,
+    "start": 474,
+    "set_setpoint": 107
+   },
+   "journal": 5892,
+   "setpoint": 5896,
+   "recheck_radiator": 0,
+   "recheck_setpoint": 1942,
+   "confirm_running": 1112,
+   "protection_stop": 18,
+   "register_writes": 1780
+  }
+ }
+}

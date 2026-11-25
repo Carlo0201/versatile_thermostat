@@ -1,0 +1,404 @@
+{
+  "id": "1794394374460",
+  "alias": "Camera Carlo - Scelta radiatore o pompa di calore",
+  "description": "Prova Camera Carlo. Comfort, Boost e regolazione manuale Oikos, richiesta isolata per 2 minuti, finestra chiusa, riserva di avvio 1500 W entro 2600 W, interruzione a 2700 W. La sospensione del radiatore termina dopo la conferma di spegnimento dello split.",
+  "triggers": [
+    {
+      "trigger": "state",
+      "id": "start",
+      "entity_id": "binary_sensor.camera_carlo_pdc_pronta_per_avvio",
+      "to": "on",
+      "for": {
+        "minutes": 2
+      }
+    },
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.energy_meter_power_a_casa",
+      "above": 2700
+    },
+    {
+      "trigger": "state",
+      "entity_id": "sensor.energy_meter_power_a_casa",
+      "to": [
+        "unknown",
+        "unavailable"
+      ]
+    },
+    {
+      "trigger": "state",
+      "entity_id": [
+        "input_boolean.camera_carlo_pdc_automatica",
+        "sensor.temperatura_camera_carlo",
+        "binary_sensor.finestra_interna_camera_carlo",
+        "select.central_mode",
+        "climate.camera_carlo_condizionatore",
+        "climate.camera_carlo_pompa_di_calore",
+        "timer.override_riscaldamento_camera_carlo",
+        "switch.schedule_camera_carlo_vtherm_feriale",
+        "switch.schedule_camera_carlo_vtherm_weekend"
+      ],
+      "to": null
+    },
+    {
+      "trigger": "state",
+      "entity_id": "climate.trv_vtherm_camera_carlo",
+      "attribute": "requested_state"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "climate.trv_vtherm_camera_carlo",
+      "attribute": "temperature"
+    },
+    {
+      "trigger": "state",
+      "entity_id": "climate.trv_vtherm_camera_carlo",
+      "attribute": "preset_mode"
+    },
+    {
+      "trigger": "homeassistant",
+      "event": "start"
+    },
+    {
+      "trigger": "time_pattern",
+      "minutes": "/1"
+    }
+  ],
+  "conditions": [
+    {
+      "condition": "or",
+      "conditions": [
+        {
+          "condition": "state",
+          "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+          "state": "on"
+        },
+        {
+          "condition": "trigger",
+          "id": "start"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "choose": [
+        {
+          "alias": "Riporta la stanza al radiatore",
+          "conditions": [
+            {
+              "condition": "state",
+              "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+              "state": "on"
+            },
+            {
+              "condition": "or",
+              "conditions": [
+                {
+                  "condition": "not",
+                  "conditions": [
+                    {
+                      "condition": "and",
+                      "conditions": [
+                        {
+                          "condition": "template",
+                          "value_template": "{{ (is_state('input_boolean.camera_carlo_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat' and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle') and is_state('switch.schedule_camera_carlo_vtherm_feriale','off') and is_state('switch.schedule_camera_carlo_vtherm_weekend','off')))) and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off')) and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and ((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) }}"
+                        },
+                        {
+                          "condition": "numeric_state",
+                          "entity_id": "sensor.energy_meter_power_a_casa",
+                          "below": 2700
+                        },
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_pompa_di_calore",
+                          "state": "heat"
+                        },
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_condizionatore",
+                          "state": "heat"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "condition": "template",
+                  "value_template": "{{ ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and (states('sensor.temperatura_camera_carlo') | float(none)) >= (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) and ((as_timestamp(now()) - as_timestamp(states['input_boolean.camera_carlo_pdc_in_gestione'].last_changed, 0)) >= 180 or (states('sensor.temperatura_camera_carlo') | float(none)) >= (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) + 0.2) }}"
+                }
+              ]
+            }
+          ],
+          "sequence": [
+            {
+              "action": "climate.set_hvac_mode",
+              "target": {
+                "entity_id": "climate.camera_carlo_pompa_di_calore"
+              },
+              "data": {
+                "hvac_mode": "off"
+              },
+              "continue_on_error": true
+            },
+            {
+              "wait_template": "{{ is_state('climate.camera_carlo_condizionatore', 'off') }}",
+              "timeout": {
+                "seconds": 20
+              },
+              "continue_on_timeout": true
+            },
+            {
+              "if": [
+                {
+                  "condition": "not",
+                  "conditions": [
+                    {
+                      "condition": "and",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_condizionatore",
+                          "state": "off"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "then": [
+                {
+                  "action": "climate.set_hvac_mode",
+                  "target": {
+                    "entity_id": "climate.camera_carlo_condizionatore"
+                  },
+                  "data": {
+                    "hvac_mode": "off"
+                  },
+                  "continue_on_error": true
+                },
+                {
+                  "wait_template": "{{ is_state('climate.camera_carlo_condizionatore', 'off') }}",
+                  "timeout": {
+                    "seconds": 15
+                  },
+                  "continue_on_timeout": true
+                }
+              ]
+            },
+            {
+              "condition": "state",
+              "entity_id": "climate.camera_carlo_condizionatore",
+              "state": "off"
+            },
+            {
+              "action": "input_boolean.turn_off",
+              "target": {
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione"
+              }
+            }
+          ]
+        },
+        {
+          "alias": "Aggiorna la temperatura dello split",
+          "conditions": [
+            {
+              "condition": "state",
+              "entity_id": "input_boolean.camera_carlo_pdc_in_gestione",
+              "state": "on"
+            },
+            {
+              "condition": "template",
+              "value_template": "{{ state_attr('climate.camera_carlo_pompa_di_calore', 'temperature') | float(none) != ([[((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) | round(0, 'ceil') | int), 16] | max, 30] | min) }}"
+            }
+          ],
+          "sequence": [
+            {
+              "action": "climate.set_temperature",
+              "target": {
+                "entity_id": "climate.camera_carlo_pompa_di_calore"
+              },
+              "data": {
+                "temperature": "{{ [[((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) | round(0, 'ceil') | int), 16] | max, 30] | min }}"
+              }
+            }
+          ]
+        },
+        {
+          "alias": "Passa dal radiatore alla pompa di calore",
+          "conditions": [
+            {
+              "condition": "trigger",
+              "id": "start"
+            },
+            {
+              "condition": "template",
+              "value_template": "{{ ((is_state('input_boolean.camera_carlo_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat' and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle') and is_state('switch.schedule_camera_carlo_vtherm_feriale','off') and is_state('switch.schedule_camera_carlo_vtherm_weekend','off')))) and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off')) and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) - (states('sensor.temperatura_camera_carlo') | float(none))) >= 0.3 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600) and (is_state('climate.termostato_ingresso', 'off') and is_state('binary_sensor.central_boiler', 'off') and is_state('input_boolean.richiesta_caldaia_vtherm', 'off') and states('sensor.nb_device_active_for_boiler') in ['0', '1'] and ((state_attr('sensor.nb_device_active_for_boiler', 'active_device_ids') or []) | reject('eq', 'climate.trv_camera_carlo') | list | count) == 0) and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off') and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off')) and is_state('input_boolean.camera_carlo_pdc_in_gestione', 'off') and is_state('climate.trv_vtherm_camera_carlo', 'heat') and is_state('climate.camera_carlo_condizionatore', 'off') and (as_timestamp(now()) - as_timestamp(states['climate.camera_carlo_condizionatore'].last_changed, 0)) >= 480 and (as_timestamp(now()) - as_timestamp(states['input_boolean.camera_carlo_pdc_in_gestione'].last_changed, 0)) >= 480 and is_state('climate.camera_carlo_pompa_di_calore', 'off') }}"
+            }
+          ],
+          "sequence": [
+            {
+              "action": "input_boolean.turn_on",
+              "target": {
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione"
+              }
+            },
+            {
+              "wait_template": "{{ is_state('climate.trv_camera_carlo', 'off') and is_state('climate.trv_vtherm_camera_carlo', 'off') and ((state_attr('climate.trv_vtherm_camera_carlo', 'specific_states') or {}).get('inhibition') or {}).get('inhibited') == true }}",
+              "timeout": {
+                "seconds": 25
+              },
+              "continue_on_timeout": true
+            },
+            {
+              "if": [
+                {
+                  "condition": "template",
+                  "value_template": "{{ (is_state('climate.trv_camera_carlo', 'off') and is_state('climate.trv_vtherm_camera_carlo', 'off') and ((state_attr('climate.trv_vtherm_camera_carlo', 'specific_states') or {}).get('inhibition') or {}).get('inhibited') == true) and ((is_state('input_boolean.camera_carlo_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat' and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle') and is_state('switch.schedule_camera_carlo_vtherm_feriale','off') and is_state('switch.schedule_camera_carlo_vtherm_weekend','off')))) and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off')) and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) - (states('sensor.temperatura_camera_carlo') | float(none))) >= 0.3 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600) and (is_state('climate.termostato_ingresso', 'off') and is_state('binary_sensor.central_boiler', 'off') and is_state('input_boolean.richiesta_caldaia_vtherm', 'off') and states('sensor.nb_device_active_for_boiler') in ['0', '1'] and ((state_attr('sensor.nb_device_active_for_boiler', 'active_device_ids') or []) | reject('eq', 'climate.trv_camera_carlo') | list | count) == 0) and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off') and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off')) }}"
+                }
+              ],
+              "then": [
+                {
+                  "action": "climate.set_temperature",
+                  "target": {
+                    "entity_id": "climate.camera_carlo_pompa_di_calore"
+                  },
+                  "data": {
+                    "temperature": "{{ [[((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) | round(0, 'ceil') | int), 16] | max, 30] | min }}"
+                  },
+                  "continue_on_error": true
+                },
+                {
+                  "if": [
+                    {
+                      "condition": "template",
+                      "value_template": "{{ ((is_state('input_boolean.camera_carlo_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat' and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle') and is_state('switch.schedule_camera_carlo_vtherm_feriale','off') and is_state('switch.schedule_camera_carlo_vtherm_weekend','off')))) and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off')) and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and ((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) - (states('sensor.temperatura_camera_carlo') | float(none))) >= 0.3 - 0.000001 and (((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) and 0 <= (states('sensor.energy_meter_power_a_casa') | float(none)) and (states('sensor.energy_meter_power_a_casa') | float(none)) + 1500 <= 2600) and (is_state('climate.termostato_ingresso', 'off') and is_state('binary_sensor.central_boiler', 'off') and is_state('input_boolean.richiesta_caldaia_vtherm', 'off') and states('sensor.nb_device_active_for_boiler') in ['0', '1'] and ((state_attr('sensor.nb_device_active_for_boiler', 'active_device_ids') or []) | reject('eq', 'climate.trv_camera_carlo') | list | count) == 0) and is_state('input_boolean.camera_diego_luisa_pdc_in_gestione', 'off') and is_state('climate.camera_diego_luisa_condizionatore_aria_stanza', 'off')) and (state_attr('climate.camera_carlo_pompa_di_calore', 'temperature') | float(none)) == ([[((state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) | round(0, 'ceil') | int), 16] | max, 30] | min) }}"
+                    }
+                  ],
+                  "then": [
+                    {
+                      "action": "climate.set_hvac_mode",
+                      "target": {
+                        "entity_id": "climate.camera_carlo_pompa_di_calore"
+                      },
+                      "data": {
+                        "hvac_mode": "heat"
+                      },
+                      "continue_on_error": true
+                    },
+                    {
+                      "wait_template": "{{ is_state('climate.camera_carlo_condizionatore', 'heat') }}",
+                      "timeout": {
+                        "seconds": 20
+                      },
+                      "continue_on_timeout": true
+                    },
+                    {
+                      "if": [
+                        {
+                          "condition": "template",
+                          "value_template": "{{ (is_state('input_boolean.camera_carlo_pdc_automatica', 'on') and ((state_attr('climate.trv_vtherm_camera_carlo', 'requested_state') or {}).get('hvac_mode')) == 'heat' and (state_attr('climate.trv_vtherm_camera_carlo', 'preset_mode') in ['comfort', 'boost'] or (is_state('timer.override_riscaldamento_camera_carlo','active') or (is_state('timer.override_riscaldamento_camera_carlo','idle') and is_state('switch.schedule_camera_carlo_vtherm_feriale','off') and is_state('switch.schedule_camera_carlo_vtherm_weekend','off')))) and states('select.central_mode') in ['Auto', 'Heat only']) and (is_state('binary_sensor.finestra_interna_camera_carlo', 'off')) and ((states('sensor.temperatura_camera_carlo') | float(none)) is not none and (state_attr('climate.trv_vtherm_camera_carlo', 'temperature') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.temperatura_camera_carlo'].last_reported, 0)) <= 3600) and ((states('sensor.energy_meter_power_a_casa') | float(none)) is not none and (as_timestamp(now()) - as_timestamp(states['sensor.energy_meter_power_a_casa'].last_reported, 0)) <= 45) }}"
+                        },
+                        {
+                          "condition": "numeric_state",
+                          "entity_id": "sensor.energy_meter_power_a_casa",
+                          "below": 2700
+                        },
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_pompa_di_calore",
+                          "state": "heat"
+                        },
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_condizionatore",
+                          "state": "heat"
+                        }
+                      ],
+                      "then": [
+                        {
+                          "stop": "Pompa di calore avviata e verificata"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "action": "climate.set_hvac_mode",
+              "target": {
+                "entity_id": "climate.camera_carlo_pompa_di_calore"
+              },
+              "data": {
+                "hvac_mode": "off"
+              },
+              "continue_on_error": true
+            },
+            {
+              "wait_template": "{{ is_state('climate.camera_carlo_condizionatore', 'off') }}",
+              "timeout": {
+                "seconds": 20
+              },
+              "continue_on_timeout": true
+            },
+            {
+              "if": [
+                {
+                  "condition": "not",
+                  "conditions": [
+                    {
+                      "condition": "and",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity_id": "climate.camera_carlo_condizionatore",
+                          "state": "off"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "then": [
+                {
+                  "action": "climate.set_hvac_mode",
+                  "target": {
+                    "entity_id": "climate.camera_carlo_condizionatore"
+                  },
+                  "data": {
+                    "hvac_mode": "off"
+                  },
+                  "continue_on_error": true
+                },
+                {
+                  "wait_template": "{{ is_state('climate.camera_carlo_condizionatore', 'off') }}",
+                  "timeout": {
+                    "seconds": 15
+                  },
+                  "continue_on_timeout": true
+                }
+              ]
+            },
+            {
+              "condition": "state",
+              "entity_id": "climate.camera_carlo_condizionatore",
+              "state": "off"
+            },
+            {
+              "action": "input_boolean.turn_off",
+              "target": {
+                "entity_id": "input_boolean.camera_carlo_pdc_in_gestione"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mode": "single",
+  "max_exceeded": "silent",
+  "trace": {
+    "stored_traces": 20
+  }
+}

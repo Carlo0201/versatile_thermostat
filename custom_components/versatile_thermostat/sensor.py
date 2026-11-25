@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, callback, Event, State
 from homeassistant.const import (
     UnitOfTime,
     PERCENTAGE,
+    EntityCategory,
 )
 
 from homeassistant.components.sensor import (
@@ -54,8 +55,13 @@ from .const import (
     CONF_TPI_COEF_INT,
     CONF_TPI_COEF_EXT,
     CONF_AUTO_TPI_MODE,
+    CONF_HEATING_ORCHESTRATION,
+    CONF_HO_PDC_RUNTIME,
+    HO_BOILER_SENSOR_SUFFIX,
+    HO_PDC_SENSOR_SUFFIX,
     overrides,
 )
+from .heating_pdc_collector import ROOM_KEY_PATTERN as PDC_ROOM_KEY_PATTERN
 
 _LOGGER = get_vtherm_logger(__name__)
 
@@ -83,6 +89,16 @@ async def async_setup_entry(
                 NbActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
                 TotalPowerActiveDeviceForBoilerSensor(hass, unique_id, name, entry.data),
             ]
+        # Boiler orchestration diagnostic, only when the section is configured
+        if CONF_HEATING_ORCHESTRATION in entry.data:
+            entities = (entities or []) + [HeatingOrchestrationBoilerSensor(hass, entry)]
+            # PDC (heat pump) diagnostic, one per configured room (a refused or invalid configuration shows its error)
+            ho_section = entry.data.get(CONF_HEATING_ORCHESTRATION)
+            pdc_section = ho_section.get(CONF_HO_PDC_RUNTIME) if isinstance(ho_section, dict) else None
+            for room in (pdc_section.get("rooms") if isinstance(pdc_section, dict) else None) or []:
+                room_key = room.get("room_key") if isinstance(room, dict) else None
+                if isinstance(room_key, str) and PDC_ROOM_KEY_PATTERN.match(room_key):
+                    entities = entities + [HeatingOrchestrationPdcSensor(hass, entry, room_key)]
     else:
         entities = [
             LastTemperatureSensor(hass, unique_id, name, entry.data),
@@ -1123,3 +1139,163 @@ class TotalPowerActiveDeviceForBoilerSensor(NbActiveDeviceForBoilerSensor):
         if self._cancel_listener_power is not None:
             self._cancel_listener_power()
             self._cancel_listener_power = None
+
+
+class HeatingOrchestrationPdcSensor(SensorEntity):
+    """Diagnostic entity of one PDC (heat pump) room (CONTRATTI.md section 4).
+
+    The state is the decision reason (or the phase of a hand-over, ``disabled``, ``starting``, ``blocked``,
+    ``suspended`` or ``error``). The entity only mirrors what the PDC manager publishes; it never evaluates
+    nor commands anything. In this release the manager is observe only.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "heating_orchestration_pdc"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = False
+    _attr_icon = "mdi:heat-pump"
+    # Volatile or bulky attributes are kept out of the recorder; the state and the short attributes stay.
+    _unrecorded_attributes = frozenset(
+        {
+            "conditions",
+            "evaluated_at",
+            "generation",
+            "deadline",
+            "transaction",
+            "diagnostic_state",
+            "setpoint",
+            "stop_reason",
+            "split_action",
+            "blocked_by",
+            "reservation",
+            "override",
+        }
+    )
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, room_key: str) -> None:
+        """Initialize the diagnostic sensor of a PDC room"""
+        self._hass = hass
+        self._entry_id = entry.entry_id
+        self._room_key = room_key
+        self._device_name = entry.data.get(CONF_NAME)
+        self._attr_unique_id = f"{entry.entry_id}{HO_PDC_SENSOR_SUFFIX}{room_key}"
+        self._attr_translation_placeholders = {"room": room_key}
+        self._attr_native_value = None
+        self._attributes: dict = {}
+        self._detach: Callable | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Same device as the other central configuration entities"""
+        return DeviceInfo(
+            entry_type=None,
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._device_name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DOMAIN,
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Diagnostic attributes (JSON safe)"""
+        return self._attributes
+
+    @callback
+    def _async_publish(self, state: str, attributes: dict) -> None:
+        self._attr_native_value = state
+        self._attributes = attributes
+        if self.hass is not None and self.entity_id:
+            self.async_write_ha_state()
+
+    @overrides
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(self._hass)
+        manager = api.heating_pdc_manager if api else None
+        if manager is None or manager.entry_id != self._entry_id:
+            self._async_publish("error", {"schema_version": 1, "room_key": self._room_key, "mode": "disabled", "last_error": "manager_missing"})
+            return
+        self._detach = manager.attach(self._room_key, self._async_publish, self.entity_id)
+
+    @overrides
+    async def async_will_remove_from_hass(self) -> None:
+        if self._detach is not None:
+            self._detach()
+            self._detach = None
+
+
+class HeatingOrchestrationBoilerSensor(SensorEntity):
+    """Diagnostic entity of the boiler orchestration (schema v1.1, CONTRATTI.md section 2).
+
+    The state is the M1 decision reason, or ``disabled`` / ``starting`` /
+    ``error``. The entity only mirrors what the manager publishes; it never
+    evaluates nor commands anything.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "heating_orchestration_boiler"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = False
+    _attr_icon = "mdi:water-boiler"
+    # High frequency or bulky attributes are excluded from the recorder; the
+    # state (reason) and the short attributes stay in the history.
+    _unrecorded_attributes = frozenset(
+        {
+            "conditions",
+            "rooms",
+            "excluded_rooms",
+            "evaluated_at",
+            "generation",
+            "cycle",
+            "inputs",
+        }
+    )
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the diagnostic sensor of the central configuration"""
+        self._hass = hass
+        self._entry_id = entry.entry_id
+        self._device_name = entry.data.get(CONF_NAME)
+        self._attr_unique_id = f"{entry.entry_id}{HO_BOILER_SENSOR_SUFFIX}"
+        self._attr_native_value = None
+        self._attributes: dict = {}
+        self._detach: Callable | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Same device as the other central configuration entities"""
+        return DeviceInfo(
+            entry_type=None,
+            identifiers={(DOMAIN, self._entry_id)},
+            name=self._device_name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DOMAIN,
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Diagnostic attributes (JSON safe)"""
+        return self._attributes
+
+    @callback
+    def _async_publish(self, state: str, attributes: dict) -> None:
+        self._attr_native_value = state
+        self._attributes = attributes
+        if self.hass is not None and self.entity_id:
+            self.async_write_ha_state()
+
+    @overrides
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        api: VersatileThermostatAPI = VersatileThermostatAPI.get_vtherm_api(self._hass)
+        manager = api.heating_orchestration_manager if api else None
+        if manager is None or manager.entry_id != self._entry_id:
+            self._async_publish("error", {"schema_version": 1, "mode": "disabled", "last_error": "manager_missing"})
+            return
+        self._detach = manager.attach(self._async_publish, self.entity_id)
+
+    @overrides
+    async def async_will_remove_from_hass(self) -> None:
+        if self._detach is not None:
+            self._detach()
+            self._detach = None

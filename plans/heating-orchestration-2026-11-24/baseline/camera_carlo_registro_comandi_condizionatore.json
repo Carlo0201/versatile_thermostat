@@ -1,0 +1,42 @@
+{
+  "source_entity_id": "automation.camera_carlo_registro_comandi_condizionatore",
+  "ha_config_hash": "0410c360d37e0117",
+  "validation": null,
+  "config": {
+    "id": "1795253059457",
+    "alias": "Camera Carlo - Registro comandi condizionatore",
+    "description": "Memorizza per 75 secondi, separatamente per campo, i comandi HA diretti allo split. Consente di ignorare le conferme dei nostri comandi, senza ignorare comandi utente autenticati. Riconosce gli effetti osservati di SmartThings: Quiet porta la ventola ad auto; OFF ripristina il preset none. Solo valori esatti attesi per 75 s, nessuna finestra cieca per gli altri comandi.",
+    "triggers": [
+      {
+        "trigger": "event",
+        "event_type": "call_service",
+        "event_data": {
+          "domain": "climate"
+        }
+      }
+    ],
+    "conditions": [
+      {
+        "condition": "template",
+        "value_template": "{% set ids=trigger.event.data.service_data.get('entity_id',[]) %}{% set ids=[ids] if ids is string else ids %}{{ 'climate.camera_carlo_condizionatore' in ids and trigger.event.data.service in ['set_hvac_mode','set_temperature','set_fan_mode','set_preset_mode','set_swing_mode','turn_off','turn_on'] }}"
+      }
+    ],
+    "actions": [
+      {
+        "action": "input_text.set_value",
+        "target": {
+          "entity_id": "input_text.camera_carlo_pdc_comandi_attesi"
+        },
+        "data": {
+          "value": "{% set prev=states('input_text.camera_carlo_pdc_comandi_attesi') | from_json({}) %}{% set d=trigger.event.data.service_data or {} %}{% set s=trigger.event.data.service %}{% set ts=(as_timestamp(now())+75)|int %}{{ {\n'm': [d.get('hvac_mode', 'off' if s=='turn_off' else 'heat'),ts] if ('hvac_mode' in d or s in ['turn_off','turn_on']) else prev.get('m',[none,0]),\n't': [d.temperature|float,ts] if 'temperature' in d else prev.get('t',[none,0]),\n'f': [d.fan_mode,ts] if 'fan_mode' in d else (['auto',ts] if s=='set_preset_mode' and d.get('preset_mode')=='quiet' else prev.get('f',[none,0])),\n'p': [d.preset_mode,ts] if 'preset_mode' in d else (['none',ts] if d.get('hvac_mode')=='off' or s=='turn_off' else prev.get('p',[none,0])),\n's': [d.swing_mode,ts] if 'swing_mode' in d else prev.get('s',[none,0])\n} | to_json }}"
+        }
+      }
+    ],
+    "mode": "queued",
+    "max": 50,
+    "max_exceeded": "warning",
+    "trace": {
+      "stored_traces": 20
+    }
+  }
+}

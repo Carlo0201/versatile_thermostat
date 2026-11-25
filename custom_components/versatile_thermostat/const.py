@@ -132,6 +132,7 @@ CONF_AUTO_REGULATION_MEDIUM = "auto_regulation_medium"
 CONF_AUTO_REGULATION_STRONG = "auto_regulation_strong"
 CONF_AUTO_REGULATION_EXPERT = "auto_regulation_expert"
 CONF_AUTO_REGULATION_DTEMP = "auto_regulation_dtemp"
+CONF_AVATTO_ROOM_CONTROL = "avatto_room_control"
 CONF_AUTO_REGULATION_PERIOD_MIN = "auto_regulation_periode_min"
 CONF_AUTO_REGULATION_USE_DEVICE_TEMP = "auto_regulation_use_device_temp"
 CONF_INVERSE_SWITCH = "inverse_switch_command"
@@ -238,6 +239,57 @@ CONF_CENTRAL_BOILER_ACTIVATION_DELAY_SEC = "central_boiler_activation_delay_sec"
 CONF_KEEP_ALIVE_BOILER_DELAY_SEC = "keep_alive_boiler_delay_sec"
 
 CONF_USED_BY_CENTRAL_BOILER = "used_by_controls_central_boiler"
+
+# Heating orchestration (M2-A, boiler observer). The section lives in the data of
+# the central configuration entry; when the key is absent the feature is
+# disabled and nothing changes. Keys are shared with heating_boiler_collector.py.
+CONF_HEATING_ORCHESTRATION = "heating_orchestration"
+CONF_HO_MODE = "mode"
+CONF_HO_MASTER = "master_entity_id"
+CONF_HO_CENTRAL_MODE = "central_mode_entity_id"
+CONF_HO_ACTIVE_COUNT = "active_count_entity_id"
+CONF_HO_MANUAL = "manual_request_entity_id"
+CONF_HO_PILOT_FILTER = "pilot_filter_entity_id"
+CONF_HO_PILOT_READY = "pilot_ready_entity_id"
+CONF_HO_CONSENTS = "consent_entity_ids"
+CONF_HO_LEGACY_CYCLE = "legacy_cycle_entity_id"
+CONF_HO_ROOMS = "rooms"
+CONF_HO_ROOM_KEY = "room_key"
+CONF_HO_ROOM_CLIMATE = "climate_entity_id"
+CONF_HO_ROOM_PILOT_FILTER = "pilot_filter"
+CONF_HO_ROOM_PDC = "pdc"
+CONF_HO_PDC_SPLIT = "split_entity_id"
+CONF_HO_PDC_SESSION = "session_entity_id"
+CONF_HO_ROOMS_TO_REMOVE = "rooms_to_remove"
+# M2-B (boiler control). ``control`` needs the external controllers that must be off
+# and an explicit confirmation written only by the options flow.
+CONF_HO_EXTERNAL_OWNERS = "external_owner_entity_ids"
+CONF_HO_CONTROL_CONFIRMED = "control_confirmed"
+CONF_HO_CONTROL_CONFIRM = "confirm_control"
+# The mode strings have a single source: the pure collector (no Home Assistant import).
+from .heating_boiler_collector import CONFIG_FLOW_MODES as _HO_CONFIG_FLOW_MODES  # noqa: E402
+from .heating_boiler_collector import MODE_CONTROL as HO_MODE_CONTROL  # noqa: E402
+from .heating_boiler_collector import MODE_DISABLED as HO_MODE_DISABLED  # noqa: E402
+from .heating_boiler_collector import MODE_OBSERVE as HO_MODE_OBSERVE  # noqa: E402
+from .heating_boiler_collector import SELECTABLE_MODES as _HO_ALL_MODES  # noqa: E402
+
+# Modes of the creation flow (never ``control``) and of the options flow.
+HO_SELECTABLE_MODES = list(_HO_CONFIG_FLOW_MODES)
+HO_OPTIONS_MODES = list(_HO_ALL_MODES)
+HO_BOILER_SENSOR_SUFFIX = "_heating_orchestration_boiler"
+# Version 2 adds the ``command`` record to the stored cycle (migration from 1).
+HO_STORAGE_VERSION = 2
+HO_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration"
+
+# PDC (heat pump) runtime: first release, observe only. It lives in the same section of the central
+# entry, with its own mode (independent of the boiler ``mode``) and its own sub-section. When the keys
+# are absent nothing is created. ``control`` is not selectable and is refused by the manager.
+CONF_HO_PDC_MODE = "pdc_mode"
+CONF_HO_PDC_RUNTIME = "pdc_runtime"
+CONF_HO_PDC_ROOMS_TO_REMOVE = "pdc_rooms_to_remove"
+HO_PDC_SELECTABLE_MODES = ["disabled", "observe"]
+HO_PDC_SENSOR_SUFFIX = "_heating_orchestration_pdc_"
+HO_PDC_STORAGE_KEY_PREFIX = "versatile_thermostat.heating_orchestration_pdc"
 CONF_WINDOW_ACTION = "window_action"
 
 CONF_AUTO_START_STOP_LEVEL = "auto_start_stop_level"
@@ -410,6 +462,7 @@ ALL_CONF = (
         CONF_AC_MODE,
         CONF_AUTO_REGULATION_MODE,
         CONF_AUTO_REGULATION_DTEMP,
+        CONF_AVATTO_ROOM_CONTROL,
         CONF_AUTO_REGULATION_PERIOD_MIN,
         CONF_AUTO_REGULATION_USE_DEVICE_TEMP,
         CONF_INVERSE_SWITCH,

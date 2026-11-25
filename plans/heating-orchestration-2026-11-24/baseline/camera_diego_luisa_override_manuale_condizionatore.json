@@ -1,0 +1,169 @@
+{
+  "source_entity_id": "automation.camera_diego_luisa_override_manuale_condizionatore",
+  "ha_config_hash": "a551457f157c81a2",
+  "validation": null,
+  "config": {
+    "id": "1795251163451",
+    "alias": "Camera Diego Luisa - Override manuale condizionatore",
+    "description": "Rileva comandi utente HA e cambiamenti del dispositivo non corrispondenti a comandi HA recenti. Rinnova 120 minuti e sincronizza esattamente VTherm, inclusi i cambi di un grado. Ignora temperatura misurata, dati indisponibili e semplici conferme.",
+    "triggers": [
+      {
+        "trigger": "event",
+        "event_type": "call_service",
+        "event_data": {
+          "domain": "climate"
+        },
+        "id": "servizio"
+      },
+      {
+        "trigger": "state",
+        "entity_id": "climate.camera_diego_luisa_condizionatore_aria_stanza",
+        "id": "dispositivo"
+      }
+    ],
+    "actions": [
+      {
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "trigger",
+                "id": "servizio"
+              },
+              {
+                "condition": "template",
+                "value_template": "{% set sd=trigger.event.data.service_data or {} %}{% set ids=sd.get('entity_id',[]) %}{% set ids=[ids] if ids is string else ids %}{{ 'climate.camera_diego_luisa_condizionatore_aria_stanza' in ids or 'climate.camera_diego_luisa_pompa_di_calore' in ids }}"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ trigger.event.context.user_id is not none and trigger.event.data.service in ['set_hvac_mode','set_temperature','set_fan_mode','set_preset_mode','set_swing_mode','turn_off','turn_on'] }}"
+              }
+            ],
+            "sequence": [
+              {
+                "action": "script.camera_diego_luisa_pdc_override_avvia"
+              }
+            ]
+          },
+          {
+            "conditions": [
+              {
+                "condition": "trigger",
+                "id": "dispositivo"
+              }
+            ],
+            "sequence": [
+              {
+                "choose": [
+                  {
+                    "conditions": [
+                      {
+                        "condition": "template",
+                        "value_template": "{{ trigger.from_state is none or trigger.from_state.state in ['unknown','unavailable'] }}"
+                      },
+                      {
+                        "condition": "template",
+                        "value_template": "{{ trigger.to_state is not none and trigger.to_state.state in ['off','heat','cool','auto','dry','fan_only','heat_cool'] }}"
+                      }
+                    ],
+                    "sequence": [
+                      {
+                        "if": [
+                          {
+                            "condition": "state",
+                            "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                            "state": "off"
+                          },
+                          {
+                            "condition": "state",
+                            "entity_id": "input_boolean.camera_diego_luisa_pdc_in_gestione",
+                            "state": "off"
+                          },
+                          {
+                            "condition": "template",
+                            "value_template": "{{ trigger.to_state.state != 'off' }}"
+                          }
+                        ],
+                        "then": [
+                          {
+                            "action": "script.camera_diego_luisa_pdc_override_avvia"
+                          }
+                        ]
+                      },
+                      {
+                        "if": [
+                          {
+                            "condition": "state",
+                            "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                            "state": "on"
+                          }
+                        ],
+                        "then": [
+                          {
+                            "action": "script.camera_diego_luisa_pdc_override_sincronizza"
+                          }
+                        ]
+                      },
+                      {
+                        "stop": "Ripristino/riconnessione: preserva override senza rinnovarlo"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "variables": {
+                  "changed": "{% set old=trigger.from_state %}{% set new=trigger.to_state %}{% set keys={'t':'temperature','f':'fan_mode','p':'preset_mode','s':'swing_mode'} %}{% set ns=namespace(changed=[]) %}{% if old is not none and new is not none and old.state in ['off','heat','cool','auto','dry','fan_only','heat_cool'] and new.state in ['off','heat','cool','auto','dry','fan_only','heat_cool'] %}{% if old.state!=new.state %}{% set ns.changed=ns.changed+['m'] %}{% endif %}{% for k,attr in keys.items() %}{% if old.attributes.get(attr)!=new.attributes.get(attr) %}{% set ns.changed=ns.changed+[k] %}{% endif %}{% endfor %}{% endif %}{{ ns.changed }}"
+                }
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ changed|length > 0 }}"
+              },
+              {
+                "delay": {
+                  "seconds": 1
+                }
+              },
+              {
+                "variables": {
+                  "manual": "{% set expected=states('input_text.camera_diego_luisa_pdc_comandi_attesi') | from_json({}) %}{% set keys={'t':'temperature','f':'fan_mode','p':'preset_mode','s':'swing_mode'} %}{% set ns=namespace(manual=false) %}{% for k in changed %}{% set v=trigger.to_state.state if k=='m' else trigger.to_state.attributes.get(keys[k]) %}{% set e=expected.get(k,[none,0]) %}{% if e[0]!=v or e[1]|float(0)<as_timestamp(now()) %}{% set ns.manual=true %}{% endif %}{% endfor %}{{ ns.manual }}"
+                }
+              },
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ manual }}"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "script.camera_diego_luisa_pdc_override_avvia"
+                  }
+                ]
+              },
+              {
+                "condition": "state",
+                "entity_id": "input_boolean.camera_diego_luisa_pdc_override",
+                "state": "on"
+              },
+              {
+                "action": "script.camera_diego_luisa_pdc_override_sincronizza",
+                "data": {
+                  "force_report": "{{ manual }}"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "mode": "queued",
+    "max": 30,
+    "max_exceeded": "warning",
+    "trace": {
+      "stored_traces": 30
+    }
+  }
+}

@@ -1,0 +1,419 @@
+{
+ "policy_sha256": "67f866c2c09a3eb9896aa131f853191e8c16993f86c3a4eb24e95296f0bc975e",
+ "random_cases_per_room": 0,
+ "seed": 20261124,
+ "total": 67,
+ "killed": 67,
+ "killed_by_parity_harness": 64,
+ "killed_by_unit_tests_only": [
+  "cooldown_future_ok",
+  "cooldown_ignores_mode",
+  "setpoint_min_16_to_17"
+ ],
+ "survived": [],
+ "invalid": [],
+ "results": [
+  {
+   "name": "start_gap_0.4_to_0.5",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "start_gap_0.4_to_0.3",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "gap_ge_to_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "epsilon_removed_in_gap",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "stability_120_to_121",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "power_reserve_1500_to_1400",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "power_budget_2600_to_2650",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "capacity_le_to_lt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "capacity_accepts_negative_power",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "diag_power_limit_1100_to_1101",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "stop_power_2700_to_2701",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "keep_running_power_le",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "power_age_45_to_46",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "power_age_lt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "power_unknown_as_zero",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError"
+  },
+  {
+   "name": "temperature_age_3600_to_3601",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "temperature_age_lt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "schedule_horizon_600_to_599",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "schedule_gt_to_ge",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "schedule_invalid_ok",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "cooldown_600_to_599",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "cooldown_le_to_lt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "cooldown_future_ok",
+   "status": "killed",
+   "by": "unit_tests",
+   "detail": "FAILED tests/test_heating_pdc_policy.py::test_missing_future_negative_or_inconsistent_cycle_never_counts_as_a_confirmed_off[cycle2-camera_carlo]"
+  },
+  {
+   "name": "cooldown_ignores_mode",
+   "status": "killed",
+   "by": "unit_tests",
+   "detail": "FAILED tests/test_heating_pdc_policy.py::test_missing_future_negative_or_inconsistent_cycle_never_counts_as_a_confirmed_off[cycle3-camera_carlo]"
+  },
+  {
+   "name": "raw_guard_600_to_599",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "raw_guard_split_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "raw_guard_managed_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 600.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "min_on_600_to_599",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "min_on_ge_to_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "stop_margin_0.2_to_0.3",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "early_margin_0.5_to_0.6",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "thermal_stop_no_min_on",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "thermal_stop_ignores_target_lowered",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "thermal_stop_accepts_future_sample",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "target_lowered_le",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "target_lowered_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "window_grace_120_to_121",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "window_grace_strict_to_inclusive",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "window_unknown_as_closed_running",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "start_requires_window_not_on_only",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "setpoint_offset_1_to_0",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "setpoint_min_16_to_17",
+   "status": "killed",
+   "by": "unit_tests",
+   "detail": "FAILED tests/test_heating_pdc_policy.py::test_only_two_parameters_differ_between_the_captured_rooms"
+  },
+  {
+   "name": "setpoint_max_30_to_29",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "setpoint_floor_instead_of_ceil",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "override_window_120_to_121",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'on', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "override_unknown_30_to_31",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'on', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "override_protection_power_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'on', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "override_protection_central_stopped_ignored",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'on', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Stopped', 'radiator_mode': 'heat', 'requested': 'heat', 'pre"
+  },
+  {
+   "name": "preset_bypass_always",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_diego_luisa', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', "
+  },
+  {
+   "name": "preset_bypass_ignores_switches",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "central_mode_allows_stopped",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'on', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Stopped', 'radiator_mode': 'heat', 'requested': 'heat', 'pre"
+  },
+  {
+   "name": "other_pdc_ignores_managed",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "other_pdc_ignores_split",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "other_pdc_unknown_as_free",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "evaluate_ignores_override",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'unknown', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'p"
+  },
+  {
+   "name": "evaluate_unknown_override_as_off",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'unknown', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'p"
+  },
+  {
+   "name": "stop_reason_window_before_power",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "diag_cooldown_dropped",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "diag_small_gap_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "diag_power_high_ge",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "diag_schedule_lt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "diag_at_target_gt",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "observe_register_no_missing_on",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "observe_register_truncation_to_round",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "classify_failure_trv_swapped",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'prese"
+  },
+  {
+   "name": "recheck_setpoint_ignores_setpoint",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'on', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'heat', 'requested': 'heat', 'preset"
+  },
+  {
+   "name": "radiator_stopped_ignores_inhibition",
+   "status": "killed",
+   "by": "parity_harness",
+   "detail": "AssertionError: {'room': 'camera_carlo', 'case': {'override': 'off', 'managed': 'off', 'managed_age': 5000.0, 'automatic': 'on', 'central': 'Auto', 'radiator_mode': 'off', 'requested': 'heat', 'preset"
+  }
+ ]
+}

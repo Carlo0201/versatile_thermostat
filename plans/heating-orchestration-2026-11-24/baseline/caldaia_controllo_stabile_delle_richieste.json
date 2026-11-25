@@ -1,0 +1,296 @@
+{
+  "source_entity_id": "automation.caldaia_controllo_stabile_delle_richieste",
+  "ha_config_hash": "7799f0f9d831df35",
+  "validation": null,
+  "config": {
+    "id": "1795508232370",
+    "alias": "Caldaia - Controllo stabile delle richieste",
+    "description": "Sostituisce filtro, avvio manuale e sincronizzazione timer precedenti (conservati disattivati). Automatico: almeno due valvole, scarto termico >=0,3 °C e stabilità 120 s con consenso vTherm; una sola valvola con scarto >=0,3 °C continuativo per 900 s. Mantiene HEAT con almeno un radiatore valido; OFF immediato senza radiatori validi, con dati conteggio invalidi o centrale esclusa. Pausa automatica 600 s da OFF confermato. Manuale Oikos immediato con valvola valida, senza pausa automatica. Contesto persistente e rivalutazione ogni 15 s; nessuna modifica alle PDC.",
+    "triggers": [
+      {
+        "trigger": "state",
+        "entity_id": [
+          "sensor.nb_device_active_for_boiler",
+          "input_boolean.richiesta_caldaia_vtherm",
+          "binary_sensor.central_boiler",
+          "binary_sensor.caldaia_richiesta_manuale_oikos",
+          "input_boolean.caldaia_filtro_pilota_avatto",
+          "binary_sensor.caldaia_avvio_automatico_avatto",
+          "select.central_mode",
+          "climate.termostato_ingresso",
+          "input_boolean.camera_carlo_pdc_in_gestione",
+          "input_boolean.camera_diego_luisa_pdc_in_gestione",
+          "climate.camera_carlo_condizionatore",
+          "climate.camera_diego_luisa_condizionatore_aria_stanza",
+          "climate.trv_vtherm_camera_carlo",
+          "climate.trv_vtherm_ingresso",
+          "climate.trv_vtherm_cucina",
+          "climate.trv_vtherm_soggiorno",
+          "climate.trv_vtherm_camera_laura_livia",
+          "climate.trv_vtherm_bagno_verde",
+          "climate.trv_vtherm_bagno_blu",
+          "climate.trv_vtherm_camera_diego_luisa"
+        ]
+      },
+      {
+        "trigger": "homeassistant",
+        "event": "start"
+      },
+      {
+        "trigger": "event",
+        "event_type": "automation_reloaded"
+      },
+      {
+        "trigger": "time_pattern",
+        "seconds": "/15"
+      }
+    ],
+    "conditions": [
+      {
+        "condition": "state",
+        "entity_id": "automation.caldaia_filtro_richiesta_vtherm",
+        "state": "off"
+      },
+      {
+        "condition": "state",
+        "entity_id": "automation.caldaia_sincronizza_timer",
+        "state": "off"
+      },
+      {
+        "condition": "state",
+        "entity_id": "automation.caldaia_avvio_immediato_richiesta_manuale",
+        "state": "off"
+      }
+    ],
+    "actions": [
+      {
+        "variables": {
+          "raw": "{% set slugs = ['camera_carlo','ingresso','cucina','soggiorno','camera_laura_livia','bagno_verde','bagno_blu','camera_diego_luisa'] %}\n{% set ids = state_attr('sensor.nb_device_active_for_boiler','active_device_ids') %}\n{% set count = states('sensor.nb_device_active_for_boiler') | float(none) %}\n{% set valid_count = count is not none and count >= 0 and count == (count | int) and ids is sequence and ids is not string and ids is not mapping and count == (ids | unique | list | count) %}\n{% set ns = namespace(rooms=[], valves=[]) %}\n{% set now_s = as_timestamp(now()) %}\n{% for slug in slugs %}\n  {% set room = 'climate.trv_vtherm_' ~ slug %}\n  {% set a = states[room].attributes if has_value(room) else {} %}\n  {% set specific = a.get('specific_states') or {} %}\n  {% set config = a.get('configuration') or {} %}\n  {% set over = a.get('vtherm_over_climate') or {} %}\n  {% set window = a.get('window_manager') or {} %}\n  {% set sensor = window.get('window_sensor_entity_id') %}\n  {% set bypass = window.get('is_window_bypass') == true %}\n  {% set closed = bypass or (window.get('window_state') == 'off' and sensor is string and is_state(sensor,'off')) %}\n  {% set current = a.get('current_temperature') | float(none) %}\n  {% set target = a.get('temperature') | float(none) %}\n  {% set age = now_s - as_timestamp(specific.get('last_temperature_datetime'),0) %}\n  {% set split = slug in ['camera_carlo','camera_diego_luisa'] %}\n  {% set split_id = 'climate.camera_carlo_condizionatore' if slug == 'camera_carlo' else 'climate.camera_diego_luisa_condizionatore_aria_stanza' %}\n  {% set radiator_allowed = not split or (is_state('input_boolean.' ~ slug ~ '_pdc_in_gestione','off') and is_state(split_id,'off')) %}\n  {% if valid_count and is_state(room,['heat','auto']) and a.get('is_ready') == true and specific.get('is_initialized') == true\n        and config.get('is_used_by_central_boiler') == true and closed and radiator_allowed\n        and (specific.get('inhibition') or {}).get('inhibited',false) == false\n        and (a.get('safety_manager') or {}).get('safety_state','off') == 'off'\n        and (a.get('power_manager') or {}).get('overpowering_state','off') == 'off'\n        and over.get('avatto_room_demand') != false\n        and current is not none and target is not none and 0 <= age <= 3600 %}\n    {% set physical = namespace(active=[]) %}\n    {% for valve in over.get('underlying_entities',[]) %}\n      {% if valve in ids and is_state(valve,['heat','auto']) and state_attr(valve,'hvac_action') == 'heating' %}\n        {% set physical.active = physical.active + [valve] %}\n      {% endif %}\n    {% endfor %}\n    {% if physical.active %}\n      {% set gap = (target-current) | round(3) %}\n      {% set pilot_ok = slug not in ['camera_carlo','bagno_blu'] or over.get('avatto_room_demand') == true %}\n      {% set ns.rooms = ns.rooms + [{'slug':slug,'target':target,'gap':gap,'pilot_ok':pilot_ok}] %}\n      {% set ns.valves = ns.valves + physical.active %}\n    {% endif %}\n  {% endif %}\n{% endfor %}\n{{ {'ok':valid_count and is_state('select.central_mode',['Auto','Heat only']),\n    'master':states('climate.termostato_ingresso'),'count':ns.valves | unique | list | count,'rooms':ns.rooms,\n    'manual':states('binary_sensor.caldaia_richiesta_manuale_oikos'),\n    'pilot':states('input_boolean.caldaia_filtro_pilota_avatto'),\n    'pilot_ready':is_state('binary_sensor.caldaia_avvio_automatico_avatto','on'),\n    'consent':is_state('input_boolean.richiesta_caldaia_vtherm','on') and is_state('binary_sensor.central_boiler','on')} }}",
+          "cycle": "{{ states('input_text.caldaia_controllo_ciclo') | from_json({}) }}",
+          "now_ts": "{{ as_timestamp(now()) }}"
+        }
+      },
+      {
+        "variables": {
+          "plan": "{% set n = now_ts | float %}\n{% set c = cycle if cycle is mapping else {} %}\n{% set mode = raw.master %}\n{% set saved = c.get('m') %}\n{% set stopped = c.get('off') | float(none) %}\n{% if mode == 'off' and (saved != 'off' or stopped is none or stopped < 0 or stopped > n) %}{% set stopped = n %}{% endif %}\n{% set usable = raw.ok and raw.count > 0 and mode in ['off','heat'] %}\n{% set qualified = raw.rooms | selectattr('gap','ge',0.3) | list %}\n{% set pilot_rooms = qualified | selectattr('pilot_ok') | list %}\n{% set automatic_ok = raw.pilot in ['on','off'] and (raw.pilot == 'off' or raw.get('pilot_ready',false)) %}\n{% set normal = usable and raw.count >= 2 and qualified | count > 0 and automatic_ok %}\n{% set ready = c.get('r') | float(none) if normal else none %}\n{% if normal and (ready is none or ready < 0 or ready > n) %}{% set ready = n %}{% endif %}\n{% set one = qualified[0] if usable and raw.count == 1 and qualified | count == 1 and automatic_ok and (raw.pilot == 'off' or qualified[0].pilot_ok) else none %}\n{% set prior = c.get('s',[]) %}\n{% set same = one is not none and prior is sequence and prior is not string and prior | length == 3 and prior[0] == one.slug and prior[1] == one.target %}\n{% set single_since = prior[2] | float(none) if same else none %}\n{% if one is not none and (single_since is none or single_since < 0 or single_since > n) %}{% set single_since = n %}{% endif %}\n{% set single = [one.slug,one.target,single_since | int] if one is not none else [] %}\n{% set ns = namespace(action='none',reason='no_demand',deadline=none) %}\n{% if mode == 'heat' %}\n  {% set ns.reason = 'maintain' %}\n  {% if not usable %}{% set ns.action = 'off' %}{% set ns.reason = 'no_valid_radiator' %}{% endif %}\n{% elif mode == 'off' %}\n  {% if usable and raw.manual == 'on' %}\n    {% set ns.action = 'heat' %}{% set ns.reason = 'manual' %}\n  {% elif usable and raw.manual == 'off' and automatic_ok and stopped is not none %}\n    {% set cooldown = stopped + 600 %}\n    {% if normal %}\n      {% set ns.deadline = [ready + 120,cooldown] | max %}\n      {% set ns.reason = 'normal_wait' %}\n      {% if n >= ns.deadline and raw.consent %}{% set ns.action = 'heat' %}{% set ns.reason = 'normal' %}{% elif n >= ns.deadline %}{% set ns.deadline = none %}{% set ns.reason = 'awaiting_consent' %}{% endif %}\n    {% elif one is not none %}\n      {% set ns.deadline = [single_since + 900,cooldown] | max %}\n      {% set ns.reason = 'single_wait' %}\n      {% if n >= ns.deadline %}{% set ns.action = 'heat' %}{% set ns.reason = 'single' %}{% endif %}\n    {% else %}{% set ns.reason = 'thermal_wait' %}\n    {% endif %}\n  {% elif not raw.ok %}{% set ns.reason = 'data_or_central' %}\n  {% elif usable %}{% set ns.reason = 'data_missing' %}\n  {% endif %}\n{% else %}{% set ns.reason = 'master_unavailable' %}\n{% endif %}\n{{ {'action':ns.action,'reason':ns.reason,'deadline':ns.deadline,\n    'cycle':{'m':mode if mode in ['off','heat'] else saved,'off':stopped | int if stopped is not none else none,\n             'r':ready | int if ready is not none else none,'s':single}} }}"
+        }
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ states('input_text.caldaia_controllo_ciclo') != plan.cycle | to_json }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "input_text.set_value",
+            "target": {
+              "entity_id": "input_text.caldaia_controllo_ciclo"
+            },
+            "data": {
+              "value": "{{ plan.cycle | to_json }}"
+            },
+            "continue_on_error": true
+          }
+        ]
+      },
+      {
+        "variables": {
+          "raw": "{% set slugs = ['camera_carlo','ingresso','cucina','soggiorno','camera_laura_livia','bagno_verde','bagno_blu','camera_diego_luisa'] %}\n{% set ids = state_attr('sensor.nb_device_active_for_boiler','active_device_ids') %}\n{% set count = states('sensor.nb_device_active_for_boiler') | float(none) %}\n{% set valid_count = count is not none and count >= 0 and count == (count | int) and ids is sequence and ids is not string and ids is not mapping and count == (ids | unique | list | count) %}\n{% set ns = namespace(rooms=[], valves=[]) %}\n{% set now_s = as_timestamp(now()) %}\n{% for slug in slugs %}\n  {% set room = 'climate.trv_vtherm_' ~ slug %}\n  {% set a = states[room].attributes if has_value(room) else {} %}\n  {% set specific = a.get('specific_states') or {} %}\n  {% set config = a.get('configuration') or {} %}\n  {% set over = a.get('vtherm_over_climate') or {} %}\n  {% set window = a.get('window_manager') or {} %}\n  {% set sensor = window.get('window_sensor_entity_id') %}\n  {% set bypass = window.get('is_window_bypass') == true %}\n  {% set closed = bypass or (window.get('window_state') == 'off' and sensor is string and is_state(sensor,'off')) %}\n  {% set current = a.get('current_temperature') | float(none) %}\n  {% set target = a.get('temperature') | float(none) %}\n  {% set age = now_s - as_timestamp(specific.get('last_temperature_datetime'),0) %}\n  {% set split = slug in ['camera_carlo','camera_diego_luisa'] %}\n  {% set split_id = 'climate.camera_carlo_condizionatore' if slug == 'camera_carlo' else 'climate.camera_diego_luisa_condizionatore_aria_stanza' %}\n  {% set radiator_allowed = not split or (is_state('input_boolean.' ~ slug ~ '_pdc_in_gestione','off') and is_state(split_id,'off')) %}\n  {% if valid_count and is_state(room,['heat','auto']) and a.get('is_ready') == true and specific.get('is_initialized') == true\n        and config.get('is_used_by_central_boiler') == true and closed and radiator_allowed\n        and (specific.get('inhibition') or {}).get('inhibited',false) == false\n        and (a.get('safety_manager') or {}).get('safety_state','off') == 'off'\n        and (a.get('power_manager') or {}).get('overpowering_state','off') == 'off'\n        and over.get('avatto_room_demand') != false\n        and current is not none and target is not none and 0 <= age <= 3600 %}\n    {% set physical = namespace(active=[]) %}\n    {% for valve in over.get('underlying_entities',[]) %}\n      {% if valve in ids and is_state(valve,['heat','auto']) and state_attr(valve,'hvac_action') == 'heating' %}\n        {% set physical.active = physical.active + [valve] %}\n      {% endif %}\n    {% endfor %}\n    {% if physical.active %}\n      {% set gap = (target-current) | round(3) %}\n      {% set pilot_ok = slug not in ['camera_carlo','bagno_blu'] or over.get('avatto_room_demand') == true %}\n      {% set ns.rooms = ns.rooms + [{'slug':slug,'target':target,'gap':gap,'pilot_ok':pilot_ok}] %}\n      {% set ns.valves = ns.valves + physical.active %}\n    {% endif %}\n  {% endif %}\n{% endfor %}\n{{ {'ok':valid_count and is_state('select.central_mode',['Auto','Heat only']),\n    'master':states('climate.termostato_ingresso'),'count':ns.valves | unique | list | count,'rooms':ns.rooms,\n    'manual':states('binary_sensor.caldaia_richiesta_manuale_oikos'),\n    'pilot':states('input_boolean.caldaia_filtro_pilota_avatto'),\n    'pilot_ready':is_state('binary_sensor.caldaia_avvio_automatico_avatto','on'),\n    'consent':is_state('input_boolean.richiesta_caldaia_vtherm','on') and is_state('binary_sensor.central_boiler','on')} }}",
+          "cycle": "{{ states('input_text.caldaia_controllo_ciclo') | from_json({}) }}",
+          "now_ts": "{{ as_timestamp(now()) }}"
+        }
+      },
+      {
+        "variables": {
+          "plan": "{% set n = now_ts | float %}\n{% set c = cycle if cycle is mapping else {} %}\n{% set mode = raw.master %}\n{% set saved = c.get('m') %}\n{% set stopped = c.get('off') | float(none) %}\n{% if mode == 'off' and (saved != 'off' or stopped is none or stopped < 0 or stopped > n) %}{% set stopped = n %}{% endif %}\n{% set usable = raw.ok and raw.count > 0 and mode in ['off','heat'] %}\n{% set qualified = raw.rooms | selectattr('gap','ge',0.3) | list %}\n{% set pilot_rooms = qualified | selectattr('pilot_ok') | list %}\n{% set automatic_ok = raw.pilot in ['on','off'] and (raw.pilot == 'off' or raw.get('pilot_ready',false)) %}\n{% set normal = usable and raw.count >= 2 and qualified | count > 0 and automatic_ok %}\n{% set ready = c.get('r') | float(none) if normal else none %}\n{% if normal and (ready is none or ready < 0 or ready > n) %}{% set ready = n %}{% endif %}\n{% set one = qualified[0] if usable and raw.count == 1 and qualified | count == 1 and automatic_ok and (raw.pilot == 'off' or qualified[0].pilot_ok) else none %}\n{% set prior = c.get('s',[]) %}\n{% set same = one is not none and prior is sequence and prior is not string and prior | length == 3 and prior[0] == one.slug and prior[1] == one.target %}\n{% set single_since = prior[2] | float(none) if same else none %}\n{% if one is not none and (single_since is none or single_since < 0 or single_since > n) %}{% set single_since = n %}{% endif %}\n{% set single = [one.slug,one.target,single_since | int] if one is not none else [] %}\n{% set ns = namespace(action='none',reason='no_demand',deadline=none) %}\n{% if mode == 'heat' %}\n  {% set ns.reason = 'maintain' %}\n  {% if not usable %}{% set ns.action = 'off' %}{% set ns.reason = 'no_valid_radiator' %}{% endif %}\n{% elif mode == 'off' %}\n  {% if usable and raw.manual == 'on' %}\n    {% set ns.action = 'heat' %}{% set ns.reason = 'manual' %}\n  {% elif usable and raw.manual == 'off' and automatic_ok and stopped is not none %}\n    {% set cooldown = stopped + 600 %}\n    {% if normal %}\n      {% set ns.deadline = [ready + 120,cooldown] | max %}\n      {% set ns.reason = 'normal_wait' %}\n      {% if n >= ns.deadline and raw.consent %}{% set ns.action = 'heat' %}{% set ns.reason = 'normal' %}{% elif n >= ns.deadline %}{% set ns.deadline = none %}{% set ns.reason = 'awaiting_consent' %}{% endif %}\n    {% elif one is not none %}\n      {% set ns.deadline = [single_since + 900,cooldown] | max %}\n      {% set ns.reason = 'single_wait' %}\n      {% if n >= ns.deadline %}{% set ns.action = 'heat' %}{% set ns.reason = 'single' %}{% endif %}\n    {% else %}{% set ns.reason = 'thermal_wait' %}\n    {% endif %}\n  {% elif not raw.ok %}{% set ns.reason = 'data_or_central' %}\n  {% elif usable %}{% set ns.reason = 'data_missing' %}\n  {% endif %}\n{% else %}{% set ns.reason = 'master_unavailable' %}\n{% endif %}\n{{ {'action':ns.action,'reason':ns.reason,'deadline':ns.deadline,\n    'cycle':{'m':mode if mode in ['off','heat'] else saved,'off':stopped | int if stopped is not none else none,\n             'r':ready | int if ready is not none else none,'s':single}} }}"
+        }
+      },
+      {
+        "alias": "Pubblica diagnostica sola lettura per Oikos",
+        "action": "input_text.set_value",
+        "continue_on_error": true,
+        "target": {
+          "entity_id": "input_text.caldaia_controllo_diagnostica"
+        },
+        "data": {
+          "value": "{% set names = ['camera_carlo','ingresso','cucina','soggiorno','camera_laura_livia','bagno_verde','bagno_blu','camera_diego_luisa'] %}{% set e=namespace(ids=[]) %}{% for room in raw.rooms %}{% if room.slug in names %}{% set e.ids=e.ids+[names.index(room.slug)] %}{% endif %}{% endfor %}{{ {'v':1,'t':as_timestamp(now())|int,'m':raw.master,'n':raw.count,'e':e.ids,'r':plan.reason,'a':plan.action,'d':plan.deadline|int if plan.deadline is not none else none,'ok':raw.ok,'man':raw.manual,'pi':raw.pilot,'pc':raw.get('pilot_ready',false),'vc':raw.consent} | to_json }}"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ plan.action == 'off' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_filtro_richiesta_vtherm",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_sincronizza_timer",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_avvio_immediato_richiesta_manuale",
+                "state": "off"
+              },
+              {
+                "action": "climate.set_hvac_mode",
+                "target": {
+                  "entity_id": "climate.termostato_ingresso"
+                },
+                "data": {
+                  "hvac_mode": "off"
+                }
+              },
+              {
+                "action": "logbook.log",
+                "continue_on_error": true,
+                "data": {
+                  "name": "Caldaia",
+                  "entity_id": "climate.termostato_ingresso",
+                  "domain": "climate",
+                  "message": "Comando spegnimento richiesto dal controllo stabile. Motivo: {{ plan.reason }}. Valvole valide: {{ raw.count }}."
+                }
+              }
+            ]
+          },
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ plan.action == 'heat' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_filtro_richiesta_vtherm",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_sincronizza_timer",
+                "state": "off"
+              },
+              {
+                "condition": "state",
+                "entity_id": "automation.caldaia_avvio_immediato_richiesta_manuale",
+                "state": "off"
+              },
+              {
+                "action": "climate.set_hvac_mode",
+                "target": {
+                  "entity_id": "climate.termostato_ingresso"
+                },
+                "data": {
+                  "hvac_mode": "heat"
+                }
+              },
+              {
+                "action": "logbook.log",
+                "continue_on_error": true,
+                "data": {
+                  "name": "Caldaia",
+                  "entity_id": "climate.termostato_ingresso",
+                  "domain": "climate",
+                  "message": "Comando accensione richiesto dal controllo stabile. Motivo: {{ plan.reason }}. Valvole valide: {{ raw.count }}."
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "variables": {
+          "remaining": "{{ [0, ((plan.deadline | float(0)) - as_timestamp(now())) | round(0,'ceil') | int] | max }}"
+        }
+      },
+      {
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ remaining | int > 0 }}"
+              },
+              {
+                "condition": "template",
+                "value_template": "{{ not is_state('timer.caldaia_attesa_avvio','active') or (as_timestamp(state_attr('timer.caldaia_attesa_avvio','finishes_at'),0) - (plan.deadline | float(0))) | abs > 2 }}"
+              }
+            ],
+            "sequence": [
+              {
+                "action": "timer.start",
+                "target": {
+                  "entity_id": "timer.caldaia_attesa_avvio"
+                },
+                "data": {
+                  "duration": "{{ remaining | int }}"
+                }
+              }
+            ]
+          },
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ remaining | int == 0 }}"
+              },
+              {
+                "condition": "state",
+                "entity_id": "timer.caldaia_attesa_avvio",
+                "state": [
+                  "active",
+                  "paused"
+                ]
+              }
+            ],
+            "sequence": [
+              {
+                "action": "timer.cancel",
+                "target": {
+                  "entity_id": "timer.caldaia_attesa_avvio"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "if": [
+          {
+            "condition": "state",
+            "entity_id": "timer.caldaia_attesa_spegnimento",
+            "state": [
+              "active",
+              "paused"
+            ]
+          }
+        ],
+        "then": [
+          {
+            "action": "timer.cancel",
+            "target": {
+              "entity_id": "timer.caldaia_attesa_spegnimento"
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "single",
+    "max_exceeded": "silent",
+    "trace": {
+      "stored_traces": 30
+    }
+  }
+}

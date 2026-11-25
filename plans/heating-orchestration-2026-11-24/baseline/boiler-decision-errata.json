@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-11-24",
+  "source_file": "boiler-decision-cases.json",
+  "source_sha256": "b2d758bdefd0139cc5aea94dc12500b45a2238838da16248824a6eef4a218f7e",
+  "approved_expected_result_overrides": [
+    {
+      "case_name": "master_unknown",
+      "result_path": ["cycle", "r"],
+      "original_value": 1800,
+      "corrected_value": null,
+      "reason": "With master unavailable, usable and normal are false; the current normative plan sets ready to none and clears cycle.r. Independently replayed offline against the captured Jinja template; all other result fields are unchanged.",
+      "evidence": "../review/M1-verifica.json"
+    }
+  ]
+}

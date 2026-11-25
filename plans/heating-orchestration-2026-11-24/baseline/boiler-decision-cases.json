@@ -1,0 +1,1278 @@
+{
+  "cases": [
+    {
+      "name": "normal119",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1881,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "normal120",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1880,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "heat"
+    },
+    {
+      "name": "cooldown599",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1401,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "cooldown600",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1400,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "heat"
+    },
+    {
+      "name": "manual_bypasses_cooldown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "carlo",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "on",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1999,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "heat"
+    },
+    {
+      "name": "manual_without_radiator",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "on",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "maintain_one",
+      "raw": {
+        "ok": true,
+        "master": "heat",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.1,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      },
+      "cycle": {
+        "m": "heat",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "stop_zero",
+      "raw": {
+        "ok": true,
+        "master": "heat",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "heat",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "off"
+    },
+    {
+      "name": "stop_invalid_count",
+      "raw": {
+        "ok": false,
+        "master": "heat",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "heat",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "off"
+    },
+    {
+      "name": "central_stopped",
+      "raw": {
+        "ok": false,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "master_unknown",
+      "raw": {
+        "ok": true,
+        "master": "unavailable",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "single899",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "diego",
+            "gap": 0.3,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1101
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "single900",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "diego",
+            "gap": 0.3,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "heat"
+    },
+    {
+      "name": "single_target_changed",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "diego",
+            "gap": 0.3,
+            "target": 19,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "single_room_changed",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "carlo",
+            "gap": 0.3,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "single_gap_small",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "diego",
+            "gap": 0.2,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "single_pending_lost",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 0,
+        "rooms": [],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": null,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "normal_missing_consent",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "pilot_unknown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "unavailable",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "manual_unknown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "unavailable",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "pilot_reject",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "carlo",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": false
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": false
+          }
+        ],
+        "manual": "off",
+        "pilot": "on",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "init_cooldown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {},
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "future_cooldown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 9000,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "bad_json_cycle",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "cucina",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.5,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": [],
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "restart_retains_single",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "diego",
+            "gap": 0.4,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1000,
+        "r": 1800,
+        "s": [
+          "diego",
+          18,
+          1100
+        ]
+      },
+      "now_ts": 2000,
+      "expected": "heat"
+    },
+    {
+      "name": "morning_0655_keep",
+      "raw": {
+        "ok": true,
+        "master": "heat",
+        "count": 1,
+        "rooms": [
+          {
+            "slug": "bagno_verde",
+            "gap": 0.1,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": false
+      },
+      "cycle": {
+        "m": "heat",
+        "off": 0,
+        "r": null,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    },
+    {
+      "name": "morning_0702_cooldown",
+      "raw": {
+        "ok": true,
+        "master": "off",
+        "count": 2,
+        "rooms": [
+          {
+            "slug": "carlo",
+            "gap": 0.3,
+            "target": 18,
+            "pilot_ok": true
+          },
+          {
+            "slug": "bagno_blu",
+            "gap": 0.1,
+            "target": 18,
+            "pilot_ok": true
+          }
+        ],
+        "manual": "off",
+        "pilot": "off",
+        "consent": true
+      },
+      "cycle": {
+        "m": "off",
+        "off": 1900,
+        "r": 1800,
+        "s": []
+      },
+      "now_ts": 2000,
+      "expected": "none"
+    }
+  ],
+  "results": [
+    {
+      "name": "cooldown599",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2001,
+        "cycle": {
+          "m": "off",
+          "off": 1401,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "normal120",
+      "expected": "heat",
+      "result": {
+        "action": "heat",
+        "reason": "normal",
+        "deadline": 2000,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1880,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "manual_bypasses_cooldown",
+      "expected": "heat",
+      "result": {
+        "action": "heat",
+        "reason": "manual",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1999,
+          "r": null,
+          "s": [
+            "carlo",
+            18,
+            2000
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "cooldown600",
+      "expected": "heat",
+      "result": {
+        "action": "heat",
+        "reason": "normal",
+        "deadline": 2000,
+        "cycle": {
+          "m": "off",
+          "off": 1400,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "normal119",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2001,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1881,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "maintain_one",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "maintain",
+        "deadline": null,
+        "cycle": {
+          "m": "heat",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "stop_invalid_count",
+      "expected": "off",
+      "result": {
+        "action": "off",
+        "reason": "no_valid_radiator",
+        "deadline": null,
+        "cycle": {
+          "m": "heat",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "central_stopped",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "data_or_central",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "stop_zero",
+      "expected": "off",
+      "result": {
+        "action": "off",
+        "reason": "no_valid_radiator",
+        "deadline": null,
+        "cycle": {
+          "m": "heat",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "manual_without_radiator",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "no_demand",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single_target_changed",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "single_wait",
+        "deadline": 2900,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": [
+            "diego",
+            19,
+            2000
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "master_unknown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "master_unavailable",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single899",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "single_wait",
+        "deadline": 2001,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": [
+            "diego",
+            18,
+            1101
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single_room_changed",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "single_wait",
+        "deadline": 2900,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": [
+            "carlo",
+            18,
+            2000
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single900",
+      "expected": "heat",
+      "result": {
+        "action": "heat",
+        "reason": "single",
+        "deadline": 2000,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": [
+            "diego",
+            18,
+            1100
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "normal_missing_consent",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "awaiting_consent",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single_pending_lost",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "no_demand",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "single_gap_small",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "thermal_wait",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "pilot_unknown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "data_missing",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "manual_unknown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "data_missing",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "pilot_reject",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "data_missing",
+        "deadline": null,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "restart_retains_single",
+      "expected": "heat",
+      "result": {
+        "action": "heat",
+        "reason": "single",
+        "deadline": 2000,
+        "cycle": {
+          "m": "off",
+          "off": 1000,
+          "r": null,
+          "s": [
+            "diego",
+            18,
+            1100
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "init_cooldown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2600,
+        "cycle": {
+          "m": "off",
+          "off": 2000,
+          "r": 2000,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "future_cooldown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2600,
+        "cycle": {
+          "m": "off",
+          "off": 2000,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "bad_json_cycle",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2600,
+        "cycle": {
+          "m": "off",
+          "off": 2000,
+          "r": 2000,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "morning_0655_keep",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "maintain",
+        "deadline": null,
+        "cycle": {
+          "m": "heat",
+          "off": 0,
+          "r": null,
+          "s": []
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "morning_0702_cooldown",
+      "expected": "none",
+      "result": {
+        "action": "none",
+        "reason": "normal_wait",
+        "deadline": 2500,
+        "cycle": {
+          "m": "off",
+          "off": 1900,
+          "r": 1800,
+          "s": []
+        }
+      },
+      "pass": true
+    }
+  ]
+}

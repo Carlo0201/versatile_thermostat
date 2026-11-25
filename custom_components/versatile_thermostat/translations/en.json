@@ -19,6 +19,7 @@
                 "menu_options": {
                     "main": "Main attributes",
                     "central_boiler": "Central boiler",
+                    "heating_orchestration": "Boiler orchestration",
                     "type": "Underlyings",
                     "tpi": "TPI parameters",
                     "features": "Features",
@@ -38,7 +39,8 @@
                     "auto_tpi_avg_settings": "Auto TPI - Weighted Average",
                     "auto_tpi_ema_settings": "Auto TPI - EWMA",
                     "finalize": "All done",
-                    "configuration_not_complete": "Configuration not complete"
+                    "configuration_not_complete": "Configuration not complete",
+                    "heating_pdc": "Heat pump (PDC) orchestration"
                 }
             },
             "lock": {
@@ -109,6 +111,7 @@
                     "ac_mode": "AC mode",
                     "sync_device_internal_temp": "Synchronize device internal temperature",
                     "auto_regulation_mode": "Self-regulation",
+                    "avatto_room_control": "Avatto room temperature control",
                     "auto_regulation_dtemp": "Regulation threshold",
                     "auto_regulation_periode_min": "Regulation minimum period",
                     "opening_threshold_degree": "Opening threshold degree",
@@ -130,6 +133,7 @@
                     "ac_mode": "Use the Air Conditioning (AC) mode",
                     "sync_device_internal_temp": "Check to synchronize the internal temperature of the underlying device (fill the new menu item 'Synchronize device temperature' to configure it)",
                     "auto_regulation_mode": "Auto adjustment of the target temperature",
+                    "avatto_room_control": "For Avatto TRVs in heating mode. Starts heating 0.3 °C below the room target and lowers the TRV to its minimum setpoint at the target.",
                     "auto_regulation_dtemp": "The threshold in ° (or % for valve) under which the temperature change will not be sent",
                     "auto_regulation_periode_min": "Duration in minutes between two regulation update",
                     "opening_threshold_degree": "Valve opening value under which the valve should be considered as closed (and then 'max_closing_degree' will apply)",
@@ -282,6 +286,78 @@
                     "keep_alive_boiler_delay_sec": "Delay in seconds to periodically resend the boiler command if keep-alive is enabled. Set to 0 to disable keep-alive."
                 }
             },
+            "heating_orchestration": {
+                "title": "Boiler orchestration",
+                "description": "Observation of the boiler decision. Choose `observe` to publish a diagnostic entity with the proposed boiler action (no command is sent). The `control` mode can be enabled later from the options of the central configuration. Rooms are added in the next step.",
+                "data": {
+                    "mode": "Mode",
+                    "master_entity_id": "Boiler master (climate)",
+                    "central_mode_entity_id": "Central mode (select)",
+                    "active_count_entity_id": "Active valves sensor (with active_device_ids)",
+                    "manual_request_entity_id": "Manual request",
+                    "pilot_filter_entity_id": "Pilot filter",
+                    "pilot_ready_entity_id": "Pilot ready",
+                    "consent_entity_ids": "Native consents (all must be on)",
+                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)",
+                    "external_owner_entity_ids": "External controllers that must be off (control)"
+                },
+                "data_description": {
+                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands. control: commands the boiler master (options flow only, with confirmation).",
+                    "master_entity_id": "Climate entity of the boiler master, only read",
+                    "central_mode_entity_id": "Select with the central mode (Auto / Heat only allow heating)",
+                    "active_count_entity_id": "Sensor whose state is the active count and whose attribute active_device_ids lists the active valves",
+                    "manual_request_entity_id": "Optional on/off entity of the manual boiler request",
+                    "pilot_filter_entity_id": "Optional on/off entity of the pilot filter",
+                    "pilot_ready_entity_id": "Optional on/off entity: pilot ready",
+                    "consent_entity_ids": "At least one on/off entity. The consent is true only when all are on",
+                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written",
+                    "external_owner_entity_ids": "Automations (or helpers) that today command the boiler master, for example the stable boiler control and the legacy ones. In control the integration sends nothing unless all of them are exactly off; it never switches them itself. Required for control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Confirm the boiler control",
+                "description": "This integration will command the boiler master {master} (heat / off).\n\n1. External controllers that must be off, never switched by this integration: {owners}. Until all of them are off nothing is sent.\n2. After every start or reload it only observes for at least 30 s before sending anything.\n3. A command counts as confirmed only when the master reports the commanded mode: at most 4 sends, with retries after 60, 120 and 300 s.\n4. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_control": "I confirm: this integration may command the boiler master"
+                },
+                "data_description": {
+                    "confirm_control": "Required to enable the control mode"
+                }
+            },
+            "heating_orchestration_rooms": {
+                "title": "Rooms of the boiler orchestration",
+                "description": "Configured rooms: {rooms}",
+                "menu_options": {
+                    "heating_orchestration_add_room": "Add a room",
+                    "heating_orchestration_remove_room": "Remove rooms",
+                    "heating_orchestration_rooms_done": "Done"
+                }
+            },
+            "heating_orchestration_add_room": {
+                "title": "Add a room",
+                "description": "Associate a Versatile Thermostat with the boiler orchestration. Valves and window sensor are read from its attributes. Configured rooms: {rooms}",
+                "data": {
+                    "room_key": "Room key",
+                    "climate_entity_id": "Room thermostat (Versatile Thermostat)",
+                    "pilot_filter": "Subject to the pilot filter",
+                    "split_entity_id": "PDC split (optional)",
+                    "session_entity_id": "PDC session (optional)"
+                },
+                "data_description": {
+                    "room_key": "Stable identifier: lowercase letters, digits and underscore",
+                    "climate_entity_id": "Versatile Thermostat climate of the room",
+                    "pilot_filter": "The room is vetoed when its Avatto demand is not true",
+                    "split_entity_id": "Heat pump split of the room: the radiator counts only when it is confirmed off",
+                    "session_entity_id": "On/off entity of the PDC session of the room (required together with the split)"
+                }
+            },
+            "heating_orchestration_remove_room": {
+                "title": "Remove rooms",
+                "description": "Select the rooms to remove. Configured rooms: {rooms}",
+                "data": {
+                    "rooms_to_remove": "Rooms to remove"
+                }
+            },
             "valve_regulation": {
                 "title": "Self-regulation with valve",
                 "description": "Configuration for self-regulation with direct control of the valve",
@@ -399,6 +475,68 @@
                     "temperature_change_tolerance": "Minimum temperature change in degrees to consider significant. Smaller changes are ignored to filter sensor noise (default: 0.5°C)",
                     "failure_detection_enable_template": "An optional Jinja2 template that must return True to enable detection. Useful to temporarily disable detection when an external heat source is active (e.g., `is_state('binary_sensor.wood_stove', 'off')` in double curly braces). If empty, detection is always enabled."
                 }
+            },
+            "heating_pdc": {
+                "title": "Heat pump (PDC) orchestration",
+                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. The control is not available in this release. Rooms are added in the next step.",
+                "data": {
+                    "pdc_mode": "PDC mode",
+                    "power_entity_id": "House power sensor",
+                    "central_mode_entity_id": "Central mode (select)"
+                },
+                "data_description": {
+                    "pdc_mode": "disabled: nothing is observed. observe: evaluates and publishes, never commands. Independent of the boiler mode.",
+                    "power_entity_id": "Power of the house in W (the start limit and the 2700 W stop use it)",
+                    "central_mode_entity_id": "Central mode select (Auto / Heat only allow the heat pump)"
+                }
+            },
+            "heating_pdc_rooms": {
+                "title": "Rooms of the heat pump orchestration",
+                "description": "Configured rooms: {rooms}",
+                "menu_options": {
+                    "heating_pdc_add_room": "Add a room",
+                    "heating_pdc_remove_room": "Remove rooms",
+                    "heating_pdc_rooms_done": "Done"
+                }
+            },
+            "heating_pdc_add_room": {
+                "title": "Add a heat pump room",
+                "description": "Radiator, split and PDC thermostat of the room, plus the helpers of the current automations (read only in observe). Configured rooms: {rooms}",
+                "data": {
+                    "room_key": "Room key",
+                    "radiator_entity_id": "Radiator thermostat (Versatile Thermostat)",
+                    "radiator_valve_entity_id": "Radiator valve (physical climate)",
+                    "temperature_entity_id": "Room temperature sensor",
+                    "window_entity_id": "Window sensor",
+                    "split_entity_id": "Air conditioner (split)",
+                    "pdc_entity_id": "Heat pump thermostat (Versatile Thermostat)",
+                    "automatic_entity_id": "Automatic PDC enabled",
+                    "schedule_stop_entity_id": "Next program stop (sensor)",
+                    "managed_entity_id": "PDC session helper (in_gestione)",
+                    "override_entity_id": "Manual override helper",
+                    "cycle_entity_id": "PDC cycle helper (input_text)",
+                    "override_timer_entity_id": "Manual regulation timer",
+                    "schedule_switch_entity_ids": "Program switches",
+                    "setpoint_min_c": "Minimum split setpoint (C)",
+                    "manual_preset_bypass": "Accept the manual Oikos regulation"
+                },
+                "data_description": {
+                    "room_key": "Stable identifier: lowercase letters, digits and underscore",
+                    "managed_entity_id": "Read in observe to compare with the current automations; never written",
+                    "override_entity_id": "Read in observe to compare with the current automations; never written",
+                    "cycle_entity_id": "Optional: read in observe as the confirmed HEAT/OFF cycle",
+                    "override_timer_entity_id": "Only for the rooms that accept the manual Oikos regulation",
+                    "schedule_switch_entity_ids": "Only for the rooms that accept the manual Oikos regulation",
+                    "setpoint_min_c": "16 for Camera Carlo, 18 for Camera Diego Luisa",
+                    "manual_preset_bypass": "Camera Carlo: a preset outside none/eco/comfort/boost is accepted during the manual regulation"
+                }
+            },
+            "heating_pdc_remove_room": {
+                "title": "Remove heat pump rooms",
+                "description": "Select the rooms to remove. Configured rooms: {rooms}",
+                "data": {
+                    "pdc_rooms_to_remove": "Rooms to remove"
+                }
             }
         },
         "error": {
@@ -413,7 +551,34 @@
             "max_opening_degrees_format": "A comma separated list of positive integer between 0 and the max valve opening is expected. Example: 80, 85, 90",
             "min_max_opening_degrees_inconsistent": "For each underlying device, max_opening_degrees must be strictly greater than min_opening_degrees. Please check your configuration.",
             "valve_control_parameters_cardinality_incorrect": "The minimum and maximum opening degree lists cannot contain more values than the configured valves",
-            "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README"
+            "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README",
+            "ho_invalid_section": "The configuration section is invalid",
+            "ho_unsupported_mode": "Unsupported mode",
+            "ho_control_not_confirmed": "Confirm the activation, or go back and choose observe",
+            "ho_required": "This field is required in observe and control mode",
+            "ho_invalid_entity": "Invalid entity id",
+            "ho_invalid_domain": "The entity has an unsupported domain for this field",
+            "ho_duplicate_binding": "The same entity is used for two different bindings",
+            "ho_invalid_room_key": "The room key must contain 1 to 64 lowercase letters, digits or underscores",
+            "ho_duplicate_room": "A room with this key already exists",
+            "ho_pdc_incomplete": "The PDC needs both the split and the session",
+            "ho_too_many_rooms": "Too many rooms",
+            "ho_too_many_consents": "Too many consent entities",
+            "ho_too_many_external_owners": "Too many external controllers",
+            "ho_invalid_room": "Invalid room",
+            "pdc_invalid_section": "Invalid heat pump configuration",
+            "pdc_unsupported_mode": "Unsupported heat pump mode",
+            "pdc_control_not_available": "The heat pump control is not available in this release",
+            "pdc_required": "Required entity",
+            "pdc_invalid_entity": "Invalid entity id",
+            "pdc_invalid_domain": "The entity has an unsupported domain",
+            "pdc_invalid_room_key": "Invalid room key (lowercase letters, digits, underscore)",
+            "pdc_duplicate_room": "Room key already used",
+            "pdc_duplicate_binding": "The same entity is used twice",
+            "pdc_too_many_rooms": "Too many rooms",
+            "pdc_invalid_value": "Invalid value",
+            "pdc_external_owners_required": "The other owners of the plant must be declared",
+            "pdc_legacy_helpers_required": "The session and override helpers are required in observe"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -438,6 +603,7 @@
                 "menu_options": {
                     "main": "Main attributes",
                     "central_boiler": "Central boiler",
+                    "heating_orchestration": "Boiler orchestration",
                     "type": "Underlyings",
                     "tpi": "TPI parameters",
                     "features": "Features",
@@ -454,7 +620,8 @@
                     "lock": "Lock",
                     "heating_failure_detection": "Heating failure detection",
                     "finalize": "All done",
-                    "configuration_not_complete": "Configuration not complete"
+                    "configuration_not_complete": "Configuration not complete",
+                    "heating_pdc": "Heat pump (PDC) orchestration"
                 }
             },
             "lock": {
@@ -523,6 +690,7 @@
                     "ac_mode": "AC mode",
                     "sync_device_internal_temp": "Synchronize device temperature",
                     "auto_regulation_mode": "Self-regulation",
+                    "avatto_room_control": "Avatto room temperature control",
                     "auto_regulation_dtemp": "Regulation threshold",
                     "auto_regulation_periode_min": "Regulation minimum period",
                     "opening_threshold_degree": "Opening threshold degree",
@@ -544,6 +712,7 @@
                     "ac_mode": "Use the Air Conditioning (AC) mode",
                     "sync_device_internal_temp": "Check to synchronize the internal temperature of the underlying device (fill the new menu item 'Synchronize device temperature' to configure it)",
                     "auto_regulation_mode": "Auto adjustment of the target temperature",
+                    "avatto_room_control": "For Avatto TRVs in heating mode. Starts heating 0.3 °C below the room target and lowers the TRV to its minimum setpoint at the target.",
                     "auto_regulation_dtemp": "The threshold in ° (or % for valve) under which the temperature change will not be sent",
                     "auto_regulation_periode_min": "Duration in minutes between two regulation update",
                     "opening_threshold_degree": "Valve opening value under which the valve should be considered as closed (and then 'max_closing_degree' will apply)",
@@ -698,6 +867,78 @@
                     "keep_alive_boiler_delay_sec": "Delay in seconds to periodically resend the boiler command if keep-alive is enabled. Set to 0 to disable keep-alive."
                 }
             },
+            "heating_orchestration": {
+                "title": "Boiler orchestration - {name}",
+                "description": "Boiler orchestration. `observe` evaluates and publishes only. `control` lets this integration switch the boiler master between heat and off; it needs the external controllers below and asks for a confirmation in the next step. Rooms are added afterwards.",
+                "data": {
+                    "mode": "Mode",
+                    "master_entity_id": "Boiler master (climate)",
+                    "central_mode_entity_id": "Central mode (select)",
+                    "active_count_entity_id": "Active valves sensor (with active_device_ids)",
+                    "manual_request_entity_id": "Manual request",
+                    "pilot_filter_entity_id": "Pilot filter",
+                    "pilot_ready_entity_id": "Pilot ready",
+                    "consent_entity_ids": "Native consents (all must be on)",
+                    "legacy_cycle_entity_id": "Legacy cycle helper (read once as seed)",
+                    "external_owner_entity_ids": "External controllers that must be off (control)"
+                },
+                "data_description": {
+                    "mode": "disabled: nothing is observed. observe: evaluates and publishes only, never commands. control: commands the boiler master (options flow only, with confirmation).",
+                    "master_entity_id": "Climate entity of the boiler master, only read",
+                    "central_mode_entity_id": "Select with the central mode (Auto / Heat only allow heating)",
+                    "active_count_entity_id": "Sensor whose state is the active count and whose attribute active_device_ids lists the active valves",
+                    "manual_request_entity_id": "Optional on/off entity of the manual boiler request",
+                    "pilot_filter_entity_id": "Optional on/off entity of the pilot filter",
+                    "pilot_ready_entity_id": "Optional on/off entity: pilot ready",
+                    "consent_entity_ids": "At least one on/off entity. The consent is true only when all are on",
+                    "legacy_cycle_entity_id": "Optional input_text with the legacy cycle JSON: it is read only once to seed the observer, never written",
+                    "external_owner_entity_ids": "Automations (or helpers) that today command the boiler master, for example the stable boiler control and the legacy ones. In control the integration sends nothing unless all of them are exactly off; it never switches them itself. Required for control."
+                }
+            },
+            "heating_orchestration_control_confirm": {
+                "title": "Confirm the boiler control - {name}",
+                "description": "This integration will command the boiler master {master} (heat / off).\n\n1. External controllers that must be off, never switched by this integration: {owners}. Until all of them are off nothing is sent.\n2. After every start or reload it only observes for at least 30 s before sending anything.\n3. A command counts as confirmed only when the master reports the commanded mode: at most 4 sends, with retries after 60, 120 and 300 s.\n4. If an external controller is switched on again, every pending command is cancelled and nothing is sent.\n\nTo stop controlling, choose observe or disabled in the previous step.",
+                "data": {
+                    "confirm_control": "I confirm: this integration may command the boiler master"
+                },
+                "data_description": {
+                    "confirm_control": "Required to enable the control mode"
+                }
+            },
+            "heating_orchestration_rooms": {
+                "title": "Rooms of the boiler orchestration - {name}",
+                "description": "Configured rooms: {rooms}",
+                "menu_options": {
+                    "heating_orchestration_add_room": "Add a room",
+                    "heating_orchestration_remove_room": "Remove rooms",
+                    "heating_orchestration_rooms_done": "Done"
+                }
+            },
+            "heating_orchestration_add_room": {
+                "title": "Add a room - {name}",
+                "description": "Associate a Versatile Thermostat with the boiler orchestration. Valves and window sensor are read from its attributes. Configured rooms: {rooms}",
+                "data": {
+                    "room_key": "Room key",
+                    "climate_entity_id": "Room thermostat (Versatile Thermostat)",
+                    "pilot_filter": "Subject to the pilot filter",
+                    "split_entity_id": "PDC split (optional)",
+                    "session_entity_id": "PDC session (optional)"
+                },
+                "data_description": {
+                    "room_key": "Stable identifier: lowercase letters, digits and underscore",
+                    "climate_entity_id": "Versatile Thermostat climate of the room",
+                    "pilot_filter": "The room is vetoed when its Avatto demand is not true",
+                    "split_entity_id": "Heat pump split of the room: the radiator counts only when it is confirmed off",
+                    "session_entity_id": "On/off entity of the PDC session of the room (required together with the split)"
+                }
+            },
+            "heating_orchestration_remove_room": {
+                "title": "Remove rooms - {name}",
+                "description": "Select the rooms to remove. Configured rooms: {rooms}",
+                "data": {
+                    "rooms_to_remove": "Rooms to remove"
+                }
+            },
             "valve_regulation": {
                 "title": "Self-regulation with valve - {name}",
                 "description": "Configuration for self-regulation with direct control of the valve",
@@ -815,6 +1056,68 @@
                     "temperature_change_tolerance": "Minimum temperature change in degrees to consider significant. Smaller changes are ignored to filter sensor noise (default: 0.5°C)",
                     "failure_detection_enable_template": "An optional Jinja2 template that must return True to enable detection. Useful to temporarily disable detection when an external heat source is active (e.g., `is_state('binary_sensor.wood_stove', 'off')` in double curly braces). If empty, detection is always enabled."
                 }
+            },
+            "heating_pdc": {
+                "title": "Heat pump (PDC) orchestration",
+                "description": "Observation of the heat pump decisions. `observe` publishes one diagnostic entity per room with the proposed action: no command is ever sent, no radiator is inhibited. The control is not available in this release. Rooms are added in the next step.",
+                "data": {
+                    "pdc_mode": "PDC mode",
+                    "power_entity_id": "House power sensor",
+                    "central_mode_entity_id": "Central mode (select)"
+                },
+                "data_description": {
+                    "pdc_mode": "disabled: nothing is observed. observe: evaluates and publishes, never commands. Independent of the boiler mode.",
+                    "power_entity_id": "Power of the house in W (the start limit and the 2700 W stop use it)",
+                    "central_mode_entity_id": "Central mode select (Auto / Heat only allow the heat pump)"
+                }
+            },
+            "heating_pdc_rooms": {
+                "title": "Rooms of the heat pump orchestration",
+                "description": "Configured rooms: {rooms}",
+                "menu_options": {
+                    "heating_pdc_add_room": "Add a room",
+                    "heating_pdc_remove_room": "Remove rooms",
+                    "heating_pdc_rooms_done": "Done"
+                }
+            },
+            "heating_pdc_add_room": {
+                "title": "Add a heat pump room",
+                "description": "Radiator, split and PDC thermostat of the room, plus the helpers of the current automations (read only in observe). Configured rooms: {rooms}",
+                "data": {
+                    "room_key": "Room key",
+                    "radiator_entity_id": "Radiator thermostat (Versatile Thermostat)",
+                    "radiator_valve_entity_id": "Radiator valve (physical climate)",
+                    "temperature_entity_id": "Room temperature sensor",
+                    "window_entity_id": "Window sensor",
+                    "split_entity_id": "Air conditioner (split)",
+                    "pdc_entity_id": "Heat pump thermostat (Versatile Thermostat)",
+                    "automatic_entity_id": "Automatic PDC enabled",
+                    "schedule_stop_entity_id": "Next program stop (sensor)",
+                    "managed_entity_id": "PDC session helper (in_gestione)",
+                    "override_entity_id": "Manual override helper",
+                    "cycle_entity_id": "PDC cycle helper (input_text)",
+                    "override_timer_entity_id": "Manual regulation timer",
+                    "schedule_switch_entity_ids": "Program switches",
+                    "setpoint_min_c": "Minimum split setpoint (C)",
+                    "manual_preset_bypass": "Accept the manual Oikos regulation"
+                },
+                "data_description": {
+                    "room_key": "Stable identifier: lowercase letters, digits and underscore",
+                    "managed_entity_id": "Read in observe to compare with the current automations; never written",
+                    "override_entity_id": "Read in observe to compare with the current automations; never written",
+                    "cycle_entity_id": "Optional: read in observe as the confirmed HEAT/OFF cycle",
+                    "override_timer_entity_id": "Only for the rooms that accept the manual Oikos regulation",
+                    "schedule_switch_entity_ids": "Only for the rooms that accept the manual Oikos regulation",
+                    "setpoint_min_c": "16 for Camera Carlo, 18 for Camera Diego Luisa",
+                    "manual_preset_bypass": "Camera Carlo: a preset outside none/eco/comfort/boost is accepted during the manual regulation"
+                }
+            },
+            "heating_pdc_remove_room": {
+                "title": "Remove heat pump rooms",
+                "description": "Select the rooms to remove. Configured rooms: {rooms}",
+                "data": {
+                    "pdc_rooms_to_remove": "Rooms to remove"
+                }
             }
         },
         "error": {
@@ -829,7 +1132,34 @@
             "max_opening_degrees_format": "A comma separated list of positive integer between 0 and the max value of the valve is expected. Example: 80, 85, 90",
             "min_max_opening_degrees_inconsistent": "For each underlying device, max_opening_degrees must be strictly greater than min_opening_degrees. Please check your configuration.",
             "valve_control_parameters_cardinality_incorrect": "The minimum and maximum opening degree lists cannot contain more values than the configured valves",
-            "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README"
+            "vswitch_configuration_incorrect": "The command customization configuration is incorrect. It is required for underlying entities that are not switches, and the format must be service_name[/attribute:value]. More information is available in the README",
+            "ho_invalid_section": "The configuration section is invalid",
+            "ho_unsupported_mode": "Unsupported mode",
+            "ho_control_not_confirmed": "Confirm the activation, or go back and choose observe",
+            "ho_required": "This field is required in observe and control mode",
+            "ho_invalid_entity": "Invalid entity id",
+            "ho_invalid_domain": "The entity has an unsupported domain for this field",
+            "ho_duplicate_binding": "The same entity is used for two different bindings",
+            "ho_invalid_room_key": "The room key must contain 1 to 64 lowercase letters, digits or underscores",
+            "ho_duplicate_room": "A room with this key already exists",
+            "ho_pdc_incomplete": "The PDC needs both the split and the session",
+            "ho_too_many_rooms": "Too many rooms",
+            "ho_too_many_consents": "Too many consent entities",
+            "ho_too_many_external_owners": "Too many external controllers",
+            "ho_invalid_room": "Invalid room",
+            "pdc_invalid_section": "Invalid heat pump configuration",
+            "pdc_unsupported_mode": "Unsupported heat pump mode",
+            "pdc_control_not_available": "The heat pump control is not available in this release",
+            "pdc_required": "Required entity",
+            "pdc_invalid_entity": "Invalid entity id",
+            "pdc_invalid_domain": "The entity has an unsupported domain",
+            "pdc_invalid_room_key": "Invalid room key (lowercase letters, digits, underscore)",
+            "pdc_duplicate_room": "Room key already used",
+            "pdc_duplicate_binding": "The same entity is used twice",
+            "pdc_too_many_rooms": "Too many rooms",
+            "pdc_invalid_value": "Invalid value",
+            "pdc_external_owners_required": "The other owners of the plant must be declared",
+            "pdc_legacy_helpers_required": "The session and override helpers are required in observe"
         },
         "abort": {
             "already_configured": "Device is already configured"
@@ -912,6 +1242,19 @@
                 "w": "Watts (W)",
                 "kw": "Kilowatts (kW)",
                 "auto": "Auto (auto-detect from sensor)"
+            }
+        },
+        "heating_orchestration_mode": {
+            "options": {
+                "disabled": "Disabled",
+                "observe": "Observe only (no command)",
+                "control": "Control (commands the boiler master)"
+            }
+        },
+        "heating_pdc_mode": {
+            "options": {
+                "disabled": "Disabled",
+                "observe": "Observe only (no command)"
             }
         }
     },
@@ -1004,6 +1347,12 @@
             },
             "total_power_active_boiler": {
                 "name": "Total active power for boiler"
+            },
+            "heating_orchestration_boiler": {
+                "name": "Boiler orchestration"
+            },
+            "heating_orchestration_pdc": {
+                "name": "Heat pump orchestration {room}"
             }
         },
         "number": {
